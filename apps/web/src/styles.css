@@ -58,5 +58,8 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 .fullview { width: min(1320px, 96vw); height: min(900px, 94vh); background: #fff; border-radius: 10px; display: flex; flex-direction: column; overflow: hidden; }
 .fullview-title { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); font-weight: 600; }
 .fullview-title span:first-child { flex: 1; }
+.fullview:focus { outline: none; }
+.fullview-close { font: inherit; cursor: pointer; border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 3px 10px; }
+.fullview-close kbd { font: 11px ui-monospace, monospace; color: var(--muted); margin-left: 4px; }
 .fullview-frame { flex: 1; border: 0; width: 100%; }
 .fullview-body { flex: 1; overflow: auto; padding: 16px 24px; max-width: 900px; }

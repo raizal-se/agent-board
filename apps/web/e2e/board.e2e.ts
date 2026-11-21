@@ -24,29 +24,26 @@ const PAGE = `<!doctype html>
   <script>document.body.dataset.ran = 'yes'; document.getElementById('title').textContent += ' (script ran)';</script>
 </body>`;
 
+const FILES = {
+  'checkout/flow.md': FLOW,
+  'checkout/api.md': '# Payment API\n\nPOST /pay\n',
+  'checkout/later.md': '# Later\n',
+  'ui/card-form.html': PAGE,
+  'readme.md': '# Payments board\n',
+};
+
+// Each test gets its own folder and its own CLI, so one failure does not hide the others.
 let cli: RunningCli;
-const errors: string[] = [];
+let errors: string[];
 
-test.describe.configure({ mode: 'serial' });
-
-test.beforeAll(async () => {
-  cli = await startCli({
-    'checkout/flow.md': FLOW,
-    'checkout/api.md': '# Payment API\n\nPOST /pay\n',
-    'ui/card-form.html': PAGE,
-    'readme.md': '# Payments board\n',
-  });
-});
-
-test.afterAll(async () => {
-  await cli?.stop();
-});
-
-test.beforeEach(({ page }) => {
+test.beforeEach(async ({ page }) => {
+  errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  cli = await startCli(FILES);
 });
 
-test.afterEach(() => {
+test.afterEach(async () => {
+  await cli?.stop();
   expect(errors, 'no errors in the page').toEqual([]);
 });
 
@@ -92,14 +89,14 @@ test('a link in a file draws an edge; removing it deletes the edge', async ({ pa
   await expect(page.locator('[aria-label="link from checkout/flow.md to checkout/api.md"]')).toBeAttached();
   await expect(page.locator('[aria-label="link from ui/card-form.html to checkout/flow.md"]')).toBeAttached();
 
-  cli.write('readme.md', '---\nlinks:\n  - to: checkout/later.md\n    label: next\n---\n# Payments board\n');
-  await expect(block(page, 'readme.md').getByTestId('missing-links')).toContainText('links to missing file: checkout/later.md');
-  cli.write('checkout/later.md', '# Later\n');
-  await expect(page.locator('[aria-label="link from readme.md to checkout/later.md"]')).toBeAttached();
+  cli.write('readme.md', '---\nlinks:\n  - to: checkout/next.md\n    label: next\n---\n# Payments board\n');
+  await expect(block(page, 'readme.md').getByTestId('missing-links')).toContainText('links to missing file: checkout/next.md');
+  cli.write('checkout/next.md', '# Next\n');
+  await expect(page.locator('[aria-label="link from readme.md to checkout/next.md"]')).toBeAttached();
   await expect(block(page, 'readme.md').getByTestId('missing-links')).toHaveCount(0);
 
   cli.write('readme.md', '# Payments board\n');
-  await expect(page.locator('[aria-label="link from readme.md to checkout/later.md"]')).toHaveCount(0);
+  await expect(page.locator('[aria-label="link from readme.md to checkout/next.md"]')).toHaveCount(0);
 });
 
 test('an HTML thumbnail loads sandboxed, takes no clicks, and opens full size', async ({ page }) => {
@@ -111,13 +108,20 @@ test('an HTML thumbnail loads sandboxed, takes no clicks, and opens full size', 
   await expect(iframe).toHaveCSS('pointer-events', 'none');
   await expect(page.frameLocator('.html-thumb iframe').locator('#title')).toContainText('script ran');
 
-  await block(page, 'ui/card-form.html').getByRole('button', { name: 'open ui/card-form.html' }).click();
+  const openBtn = block(page, 'ui/card-form.html').getByRole('button', { name: 'open ui/card-form.html' });
   const full = page.getByTestId('fullview');
+
+  // Esc closes it while focus is in the board.
+  await openBtn.click();
   await expect(full).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(full).toHaveCount(0);
+
+  // The page is clickable, and sandboxed: it cannot reach the board.
+  await openBtn.click();
   const frame = page.frameLocator('.fullview-frame');
   await frame.locator('#pay').click();
   await expect(frame.locator('#title')).toHaveText('clicked');
-  // The page has an opaque origin: it cannot read the board.
   const canReachParent = await frame.locator('body').evaluate(() => {
     try {
       return typeof window.parent.document !== 'undefined';
@@ -126,6 +130,15 @@ test('an HTML thumbnail loads sandboxed, takes no clicks, and opens full size', 
     }
   });
   expect(canReachParent).toBe(false);
+  // After a click inside the page, the close button closes it.
+  await full.getByRole('button', { name: 'Close' }).click();
+  await expect(full).toHaveCount(0);
+
+  // After a click inside the page, Esc works again once the pointer leaves the page.
+  await openBtn.click();
+  await frame.locator('#pay').click();
+  const titleBar = (await full.locator('.fullview-title').boundingBox())!;
+  await page.mouse.move(titleBar.x + 20, titleBar.y + titleBar.height / 2, { steps: 5 });
   await page.keyboard.press('Escape');
   await expect(full).toHaveCount(0);
 });
