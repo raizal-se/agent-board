@@ -11,10 +11,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@agent-board/formats": "workspace:*",
     "@agent-board/model": "workspace:*",
+    "@agent-board/sync": "workspace:*",
     "@xyflow/react": "^13.0.2",
+    "marked": "^18.2.1",
+    "pele": "^1.13.0",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "trystero": "^0.27.0"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",

@@ -12,7 +12,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@agent-board/model": "workspace:*"
+    "@agent-board/formats": "workspace:*",
+    "@agent-board/model": "workspace:*",
+    "@agent-board/sync": "workspace:*",
+    "chokidar": "^6.0.0",
+    "node-datachannel": "^0.33.6",
+    "trystero": "^0.27.0",
+    "yjs": "^13.6.33"
   },
   "devDependencies": {
     "tsx": "^4.23.15"

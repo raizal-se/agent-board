@@ -13,6 +13,7 @@
     "dev": "pnpm --filter @agent-board/web dev"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
     "typescript": "^7.0.2",
     "vitest": "^5.1.1"
