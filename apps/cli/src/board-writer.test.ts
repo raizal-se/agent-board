@@ -155,4 +155,47 @@ describe('BoardWriter', () => {
     expect(other.upsert('a.md', 'x')).toBe('new');
     expect(itemsMap(doc).size).toBe(2);
   });
+
+  it('a file moved onto the path of a deleted file keeps its own block, place and edges', () => {
+    const { doc, writer, item } = setup();
+    writer.upsert('x.md', '---\nlinks:\n  - to: b.md\n---\n');
+    writer.upsert('b.md', '---\nlinks:\n  - to: x.md\n---\nold b');
+    const oldB = item('b.md')!.id;
+    writer.unlink('b.md');
+    vi.advanceTimersByTime(1000);
+    expect(item('b.md')?.gone).toBe(true);
+
+    writer.upsert('a.md', '---\nlinks:\n  - to: x.md\n    label: moved\n---\nA');
+    const a = item('a.md')!.id;
+    const pos = layoutMap(doc).get(a);
+    writer.unlink('a.md');
+    expect(writer.upsert('b.md', '---\nlinks:\n  - to: x.md\n    label: moved\n---\nA')).toBe('renamed');
+    vi.advanceTimersByTime(2000);
+
+    expect(item('b.md')).toMatchObject({ id: a, gone: false });
+    expect(layoutMap(doc).get(a)).toEqual(pos);
+    expect(fileEdgesOf(doc, a).map((e) => e.label)).toEqual(['moved']);
+    // The old deleted block is gone for good, with the edges its file declared.
+    expect(itemsMap(doc).has(oldB)).toBe(false);
+    expect(fileEdgesOf(doc, oldB)).toHaveLength(0);
+    // x.md's link to b.md now points at the block that holds b.md.
+    expect(fileEdgesOf(doc, item('x.md')!.id)[0]?.to).toBe(a);
+  });
+
+  it('a rename cut short by a restart is still a rename on the next start', () => {
+    const onDisk = new Set(['a.md']);
+    const { doc, writer, item } = setup(onDisk);
+    writer.upsert('a.md', 'same');
+    const id = item('a.md')!.id;
+    onDisk.delete('a.md');
+    writer.unlink('a.md');
+    writer.dispose(); // the CLI stops inside the rename window
+    expect(item('a.md')?.gone).toBe(false);
+
+    onDisk.add('a2.md');
+    const w2 = new BoardWriter(doc, { owner: 'dewi', rootName: 'payments', exists: (p) => onDisk.has(p) });
+    expect(w2.upsert('a2.md', 'same')).toBe('renamed');
+    expect(w2.reconcile(onDisk)).toEqual([]);
+    expect(item('a2.md')).toMatchObject({ id, gone: false });
+  });
 });

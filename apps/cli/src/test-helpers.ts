@@ -1,8 +1,8 @@
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { createBoardDoc, itemsMap, type FileItem } from '@agent-board/model';
-import { WebSocketClientTransport, YjsSync, type SocketLike } from '@agent-board/sync';
+import { boardIdOf, createBoardDoc, itemsMap, type FileItem } from '@agent-board/model';
+import { boardSocketUrl, WebSocketClientTransport, YjsSync, type SocketLike } from '@agent-board/sync';
 import { WebSocket } from 'ws';
 import type * as Y from 'yjs';
 
@@ -43,8 +43,9 @@ export function itemAt(doc: Y.Doc, path: string): FileItem | undefined {
 /** A browser tab stand-in: a doc synced with the board over a real WebSocket. */
 export function connectTab(port: number, origin = `http://127.0.0.1:${port}`) {
   const doc = createBoardDoc();
+  // Same URL rule as the page (apps/web/src/board/connection.ts).
   const transport = new WebSocketClientTransport(
-    `ws://127.0.0.1:${port}/sync`,
+    () => boardSocketUrl(`ws://127.0.0.1:${port}/sync`, boardIdOf(doc)),
     (url) => new WebSocket(url, { headers: { Origin: origin } }) as unknown as SocketLike,
   );
   const sync = new YjsSync(doc, transport);

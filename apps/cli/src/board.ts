@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { boardMap, type Device } from '@agent-board/model';
+import { boardMap, ensureBoardId, type Device } from '@agent-board/model';
 import { BoardWriter } from './board-writer';
 import type { Identity } from './config';
 import { startServer, type BoardServer } from './server';
@@ -48,6 +48,7 @@ export async function startBoard(opts: BoardOptions): Promise<RunningBoard> {
   doc.transact(() => {
     const meta = boardMap<string>(doc, 'meta');
     if (!meta.get('name')) meta.set('name', basename(folder));
+    ensureBoardId(doc);
     const devices = boardMap<Device>(doc, 'devices');
     const prev = devices.get(name);
     if (!prev || prev.side !== side) devices.set(name, { id: name, name, side });
@@ -77,7 +78,9 @@ export async function startBoard(opts: BoardOptions): Promise<RunningBoard> {
     ready: watcher.ready,
     stop: async () => {
       await watcher.close();
-      writer.flushPending();
+      // Pending deletes stay undecided: if one was half of a rename, the next start still sees
+      // the moved file and keeps its block. The first scan then marks the rest gone.
+      writer.dispose();
       await server.close();
       saver.close();
       doc.destroy();

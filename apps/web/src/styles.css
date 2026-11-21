@@ -6,7 +6,7 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 .board-header { display: flex; gap: 10px; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
 .status { color: var(--muted); font-size: 12px; }
 .status-online::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #2e9d57; margin-right: 5px; }
-.status-offline { color: var(--danger); }
+.status-offline, .status-other-board { color: var(--danger); }
 .board-footer { display: flex; flex-direction: column; gap: 6px; }
 .empty { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; color: var(--muted); }
 

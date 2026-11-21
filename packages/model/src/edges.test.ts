@@ -64,6 +64,14 @@ describe('syncFileEdges', () => {
     expect(fileEdgesOf(doc, A)[0]?.to).toBe('f_x');
   });
 
+  it('a block at the path as written takes the edge back from a renamed target', () => {
+    const doc = createBoardDoc();
+    syncFileEdges(doc, A, [{ to: 'x.md', label: '' }], () => 'f_x');
+    // x.md was renamed (the edge kept f_x); now a new x.md exists.
+    syncFileEdges(doc, A, [{ to: 'x.md', label: '' }], () => 'f_new');
+    expect(fileEdgesOf(doc, A)[0]?.to).toBe('f_new');
+  });
+
   it('add and remove reach a second doc', () => {
     const a = createBoardDoc();
     const b = createBoardDoc();
@@ -82,5 +90,14 @@ describe('resolveEdgesTo', () => {
     expect(resolveEdgesTo(doc, 'later.md', 'f_later')).toBe(1);
     const byPath = Object.fromEntries(fileEdgesOf(doc, A).map((e) => [e.toPath, e.to]));
     expect(byPath).toEqual({ 'later.md': 'f_later', 'other.md': null });
+  });
+
+  it('takes back an edge that followed a renamed target when a new block appears at its path', () => {
+    const doc = createBoardDoc();
+    syncFileEdges(doc, A, [{ to: 'b.md', label: '' }], () => 'f_b');
+    // b.md was renamed to c.md: the edge still points at f_b. A new b.md appears.
+    expect(resolveEdgesTo(doc, 'b.md', 'f_b2')).toBe(1);
+    expect(fileEdgesOf(doc, A)[0]?.to).toBe('f_b2');
+    expect(resolveEdgesTo(doc, 'b.md', 'f_b2')).toBe(0);
   });
 });

@@ -8,7 +8,9 @@ import type * as Y from 'yjs';
  * (`source: 'human'`) are never touched here.
  *
  * `toPath` is the link as written (relative to the board root). `to` is the target block id, or
- * null while no block has that path. The canvas draws an edge only when `to` names a visible block.
+ * null while no block has had that path. When the target is renamed, `to` follows it; when a block
+ * appears at `toPath` again, `to` points at that block. The canvas draws an edge only when `to`
+ * names a visible block.
  */
 export interface FileEdge {
   id: string;
@@ -39,7 +41,8 @@ export function fileEdgeId(from: string, toPath: string, label: string): string 
 /**
  * Make the edges owned by `fromItem` match `links` exactly: add the new ones and delete the ones
  * whose link is gone. Unchanged edges are not rewritten (a save without link changes sends no edge
- * update), except that an unresolved edge gets its target once `resolve` knows it.
+ * update), except that an edge is pointed at the block `resolve` finds for its path, when there is
+ * one and it is another block.
  */
 export function syncFileEdges(
   doc: Y.Doc,
@@ -64,22 +67,27 @@ export function syncFileEdges(
       if (!prev) {
         edges.set(id, { id, source: 'file', from: fromItem, toPath: l.to, to: resolve(l.to), label: l.label });
         added.push(id);
-      } else if (prev.to === null) {
+      } else {
+        // A block at the path as written wins. With no block there, the edge keeps its target:
+        // that is how an edge follows a renamed target.
         const to = resolve(l.to);
-        if (to) edges.set(id, { ...prev, to });
+        if (to && to !== prev.to) edges.set(id, { ...prev, to });
       }
     }
   });
   return { added, removed };
 }
 
-/** A block now exists at `path`: point every waiting edge with that target path at it. */
+/**
+ * A block now exists at `path`: point every edge whose link names that path at it. This fills
+ * waiting edges, and takes back edges that followed an earlier file at that path to its new name.
+ */
 export function resolveEdgesTo(doc: Y.Doc, path: string, itemId: string): number {
   const edges = edgesMap(doc);
   let n = 0;
   doc.transact(() => {
     for (const [id, e] of edges.entries()) {
-      if (e?.source === 'file' && e.to === null && e.toPath === path) {
+      if (e?.source === 'file' && e.toPath === path && e.to !== itemId) {
         edges.set(id, { ...e, to: itemId });
         n++;
       }

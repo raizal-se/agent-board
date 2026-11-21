@@ -1,6 +1,7 @@
 import { request } from 'node:http';
-import { createBoardDoc, itemsMap, layoutMap } from '@agent-board/model';
+import { createBoardDoc, ensureBoardId, itemsMap, layoutMap } from '@agent-board/model';
 import { afterEach, describe, expect, it } from 'vitest';
+import { encodeMessage } from '@agent-board/sync';
 import { WebSocket } from 'ws';
 import { startServer, type BoardServer } from './server';
 import { connectTab, fakeWebDir, until } from './test-helpers';
@@ -111,5 +112,46 @@ describe('board server', () => {
     const s2 = await startServer({ doc, port, webDir });
     cleanup.push(() => s2.close());
     await until(() => layoutMap(doc).get('x')?.x === 1, 5000, 'offline change reaches the CLI');
+  });
+
+  it('refuses a tab that holds another board, so it cannot write that board into this one', async () => {
+    const webDir = fakeWebDir();
+    const a = createBoardDoc();
+    ensureBoardId(a);
+    itemsMap(a).set('f_a', { id: 'f_a', kind: 'file', path: 'a.md', frame: 'frame:x', type: 'markdown', text: 'A', hash: '', owner: 'me', gone: false, updatedAt: 0 });
+    const s1 = await startServer({ doc: a, port: 0, webDir });
+    const port = s1.port;
+    const t = connectTab(port);
+    cleanup.push(() => t.close());
+    await until(() => itemsMap(t.doc).has('f_a'), 3000, 'board A in the tab');
+    await s1.close();
+
+    // The CLI starts again on the same port, with another board.
+    const b = createBoardDoc();
+    ensureBoardId(b);
+    const s2 = await startServer({ doc: b, port, webDir });
+    cleanup.push(() => s2.close());
+    await until(() => t.transport.status === 'other-board', 5000, 'tab told it holds another board');
+    expect(itemsMap(b).has('f_a')).toBe(false);
+    expect(s2.tabs()).toBe(0);
+
+    // A fresh tab (the page after its reload) syncs normally.
+    const fresh = connectTab(port);
+    cleanup.push(() => fresh.close());
+    await until(() => fresh.transport.status === 'online', 3000, 'fresh tab online');
+    expect(itemsMap(b).has('f_a')).toBe(false);
+  });
+
+  it('a malformed update from a tab is dropped and the CLI keeps serving', async () => {
+    const { doc, s } = await server();
+    const raw = new WebSocket(`ws://127.0.0.1:${s.port}/sync`, { headers: { Origin: `http://127.0.0.1:${s.port}` } });
+    cleanup.push(() => raw.close());
+    await new Promise((ok) => raw.once('open', ok));
+    // Channel 'y', message type 1 (a Yjs update), then bytes that are not an update.
+    raw.send(encodeMessage('y', new Uint8Array([1, 255, 255, 255, 255, 255, 1, 2, 3])));
+    const t = connectTab(s.port);
+    cleanup.push(() => t.close());
+    itemsMap(doc).set('f_1', { id: 'f_1', kind: 'file', path: 'a.md', frame: 'frame:x', type: 'markdown', text: 'ok', hash: '', owner: 'me', gone: false, updatedAt: 0 });
+    await until(() => itemsMap(t.doc).get('f_1')?.text === 'ok', 3000, 'still syncing');
   });
 });

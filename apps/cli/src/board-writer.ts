@@ -72,8 +72,15 @@ export class BoardWriter {
     let result: UpsertResult;
 
     this.doc.transact(() => {
-      const known = this.index.get(path);
-      const prev = known ? items.get(known) : undefined;
+      let known = this.index.get(path);
+      let prev = known ? items.get(known) : undefined;
+      // A file moved onto the path of a deleted file is that moved file's block, not the old one:
+      // the old block leaves the board, and the moved block takes its path and incoming links.
+      if (known && prev?.gone && this.findRenameSource(hash, path)) {
+        this.retire(known, path);
+        known = undefined;
+        prev = undefined;
+      }
       if (known && prev) {
         this.cancelGone(known);
         if (prev.hash === hash && !prev.gone) {
@@ -142,18 +149,17 @@ export class BoardWriter {
     return goneNow;
   }
 
-  /** Mark every pending delete as gone now (used on shutdown and in tests). */
-  flushPending(): void {
-    for (const [id, t] of this.pendingGone) {
-      clearTimeout(t);
-      this.markGone(id);
-    }
-    this.pendingGone.clear();
-  }
-
   dispose(): void {
     for (const t of this.pendingGone.values()) clearTimeout(t);
     this.pendingGone.clear();
+  }
+
+  /** Remove a gone block for good: its item, its place and the edges its file declared. */
+  private retire(id: string, path: string) {
+    syncFileEdges(this.doc, id, []);
+    itemsMap(this.doc).delete(id);
+    layoutMap(this.doc).delete(id);
+    this.index.delete(path);
   }
 
   private markGone(id: string): boolean {

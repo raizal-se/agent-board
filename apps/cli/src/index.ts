@@ -40,8 +40,6 @@ async function watchCommand(args: string[]) {
   const board = await startBoard({ folder: root, identity, port, poll: values.poll, log });
   process.stdout.write(`Board: ${board.url}\n`);
   process.stdout.write(`Watching ${root} as ${identity.name} (${identity.side}). Ctrl+C to stop.\n`);
-  await board.ready;
-
   let stopping = false;
   const stop = async () => {
     if (stopping) return;
@@ -51,6 +49,7 @@ async function watchCommand(args: string[]) {
   };
   process.on('SIGINT', () => void stop());
   process.on('SIGTERM', () => void stop());
+  await board.ready;
 }
 
 async function main(argv: string[]) {

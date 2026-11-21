@@ -12,7 +12,20 @@ export interface SocketLike {
   send(data: Uint8Array): void;
   close(code?: number, reason?: string): void;
   addEventListener(type: 'message', l: (ev: { data: unknown }) => void): void;
-  addEventListener(type: 'open' | 'close' | 'error', l: () => void): void;
+  addEventListener(type: 'close', l: (ev: { code?: number }) => void): void;
+  addEventListener(type: 'open' | 'error', l: () => void): void;
+}
+
+/**
+ * Close code the hub sends when a tab asks for a board other than the one it serves (the tab holds
+ * an old board in memory, for example after the CLI restarted on another folder). The tab must not
+ * sync: it would write the old board into the new one.
+ */
+export const CLOSE_OTHER_BOARD = 4409;
+
+/** The socket URL of a tab: names the board once the tab holds one, so the hub can refuse it. */
+export function boardSocketUrl(base: string, boardId: string | undefined): string {
+  return boardId ? `${base}?board=${encodeURIComponent(boardId)}` : base;
 }
 
 const OPEN = 1;
@@ -133,7 +146,8 @@ export class WebSocketHubTransport extends BaseTransport {
   }
 }
 
-export type ConnectionStatus = 'connecting' | 'online' | 'offline';
+/** `other-board`: the hub serves another board now; the tab stopped and must start over. */
+export type ConnectionStatus = 'connecting' | 'online' | 'offline' | 'other-board';
 
 /**
  * The browser side. One peer, `hub`. Reconnects after the CLI restarts; YjsSync then exchanges state
@@ -146,8 +160,9 @@ export class WebSocketClientTransport extends BaseTransport {
   private readonly statusL = new Set<(s: ConnectionStatus) => void>();
   status: ConnectionStatus = 'connecting';
 
+  /** `url` is read again before each connect, so it can carry what the tab learned (the board id). */
   constructor(
-    private readonly url: string,
+    private readonly url: string | (() => string),
     private readonly makeSocket: (url: string) => SocketLike = (u) => new WebSocket(u) as unknown as SocketLike,
   ) {
     super(`tab-${Math.random().toString(36).slice(2, 10)}`);
@@ -167,7 +182,7 @@ export class WebSocketClientTransport extends BaseTransport {
 
   private connect() {
     if (this.stopped) return;
-    const socket = this.makeSocket(this.url);
+    const socket = this.makeSocket(typeof this.url === 'function' ? this.url() : this.url);
     let opened = false;
     socket.addEventListener('open', () => {
       opened = true;
@@ -175,8 +190,13 @@ export class WebSocketClientTransport extends BaseTransport {
       this.attach('hub', socket);
       this.setStatus('online');
     });
-    socket.addEventListener('close', () => {
+    socket.addEventListener('close', (ev) => {
       if (this.stopped) return;
+      if (ev?.code === CLOSE_OTHER_BOARD) {
+        this.stopped = true;
+        this.setStatus('other-board');
+        return;
+      }
       this.setStatus('offline');
       this.timer = setTimeout(() => this.connect(), this.retryMs);
       this.retryMs = Math.min(this.retryMs * 2, opened ? 2000 : 4000);

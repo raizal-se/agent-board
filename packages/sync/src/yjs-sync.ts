@@ -16,6 +16,8 @@ export interface SyncStats {
   applied: number;
   /** Received updates that changed nothing (already known: loops, duplicates). */
   duplicates: number;
+  /** Received updates that could not be decoded, dropped. */
+  rejected: number;
   /** Messages sent on behalf of another peer (forwarding). */
   forwarded: number;
   /** Messages sent for local changes and handshake replies. */
@@ -40,7 +42,7 @@ export interface YjsSyncOptions {
  *   That is what makes loops terminate.
  */
 export class YjsSync {
-  readonly stats: SyncStats = { received: 0, applied: 0, duplicates: 0, forwarded: 0, sent: 0 };
+  readonly stats: SyncStats = { received: 0, applied: 0, duplicates: 0, rejected: 0, forwarded: 0, sent: 0 };
   private readonly forward: boolean;
   private readonly offs: Unsubscribe[] = [];
   private readonly channel;
@@ -86,7 +88,13 @@ export class YjsSync {
         } else if (type === MSG_UPDATE) {
           this.stats.received++;
           const before = this.stats.applied;
-          Y.applyUpdate(doc, body, new RemoteOrigin(from));
+          try {
+            Y.applyUpdate(doc, body, new RemoteOrigin(from));
+          } catch {
+            // A malformed update must not take the hub down; drop it.
+            this.stats.rejected++;
+            return;
+          }
           if (this.stats.applied === before) this.stats.duplicates++;
         }
       }),

@@ -2,7 +2,8 @@ import { createReadStream, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { extname, join, normalize, resolve, sep } from 'node:path';
-import { WebSocketHubTransport, YjsSync, type SocketLike } from '@agent-board/sync';
+import { boardIdOf } from '@agent-board/model';
+import { CLOSE_OTHER_BOARD, WebSocketHubTransport, YjsSync, type SocketLike } from '@agent-board/sync';
 import { WebSocketServer } from 'ws';
 import type * as Y from 'yjs';
 
@@ -80,6 +81,13 @@ export async function startServer(opts: BoardServerOptions): Promise<BoardServer
       return;
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
+      // A tab that already holds a board says which one. If it is not ours, it must not sync.
+      const asked = url.searchParams.get('board');
+      if (asked && asked !== boardIdOf(opts.doc)) {
+        log('refused a tab that holds another board; it will reload');
+        ws.close(CLOSE_OTHER_BOARD, 'another board');
+        return;
+      }
       const id = hub.addSocket(ws as unknown as SocketLike);
       log(`tab connected (${id})`);
       ws.on('close', () => log(`tab closed (${id})`));

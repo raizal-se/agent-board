@@ -26,6 +26,23 @@ export function boardMap<T = unknown>(doc: Y.Doc, name: BoardMapName): Y.Map<T> 
   return doc.getMap<T>(name);
 }
 
+/**
+ * The board's identity, `meta.id`. The CLI sets it once, when it creates the board. A tab that
+ * synced with one board must never sync into another (see CLOSE_OTHER_BOARD in the sync package).
+ */
+export function boardIdOf(doc: Y.Doc): string | undefined {
+  const id = doc.getMap('meta').get('id');
+  return typeof id === 'string' ? id : undefined;
+}
+
+export function ensureBoardId(doc: Y.Doc): string {
+  const known = boardIdOf(doc);
+  if (known) return known;
+  const id = globalThis.crypto.randomUUID();
+  doc.getMap('meta').set('id', id);
+  return id;
+}
+
 export * from './items';
 export * from './layout';
 export * from './edges';

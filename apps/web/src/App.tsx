@@ -28,6 +28,7 @@ const STATUS_TEXT: Record<ConnectionStatus, string> = {
   connecting: 'connecting…',
   online: 'live',
   offline: 'CLI not reachable, retrying…',
+  'other-board': 'the CLI serves another board now, reloading…',
 };
 
 function useStatus(conn: BoardConnection): ConnectionStatus {
