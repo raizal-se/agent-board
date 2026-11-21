@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>agent-board CLI</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#93C5FD}a:hover{color:#BFDBFE}
+</style>
+</helmet>
+<div style="width: 1200px; height: 820px; box-sizing: border-box; padding: 32px; background: #E5E8ED; font-family: Inter, system-ui, sans-serif; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+
+  <section style="display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; background: #0F172A; box-shadow: 0 10px 30px rgba(15,23,42,0.25)">
+    <div style="display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #1E293B; color: #CBD5E1; font-size: 12px">
+      <span style="width: 10px; height: 10px; border-radius: 50%; background: #475569"></span><span style="width: 10px; height: 10px; border-radius: 50%; background: #475569"></span><span style="width: 10px; height: 10px; border-radius: 50%; background: #475569"></span>
+      <span style="margin-left: 10px">Setup · once</span>
+    </div>
+    <div style="flex-grow: 1; padding: 18px 20px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.75; color: #E2E8F0; white-space: pre-wrap">
+<span style="color: #94A3B8">$</span> npx agent-board setup
+
+<span style="color: #86EFAC">?</span> Your name <span style="color: #93C5FD">Dewi</span>
+<span style="color: #86EFAC">?</span> Your side <span style="color: #93C5FD">Product</span>  <span style="color: #94A3B8">(product / engineering)</span>
+<span style="color: #86EFAC">?</span> Project folder <span style="color: #93C5FD">~/work/payments</span>
+<span style="color: #86EFAC">?</span> Shared folder <span style="color: #93C5FD">board/</span>
+<span style="color: #86EFAC">?</span> Invite link <span style="color: #93C5FD">…/b/payments#k7Pq…</span>
+
+<span style="color: #94A3B8">→</span> Finding peers through Trystero…
+<span style="color: #94A3B8">→</span> Arif sees your join request.
+<span style="color: #86EFAC">?</span> Code from Slack <span style="color: #93C5FD">305 662</span>
+<span style="color: #86EFAC">✓</span> Key exchange OK. Device approved.
+<span style="color: #86EFAC">✓</span> Saved to ~/.agent-board/config.json
+
+Next: <span style="color: #FDE68A">agent-board watch</span></div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; background: #0F172A; box-shadow: 0 10px 30px rgba(15,23,42,0.25)">
+    <div style="display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #1E293B; color: #CBD5E1; font-size: 12px">
+      <span style="width: 10px; height: 10px; border-radius: 50%; background: #475569"></span><span style="width: 10px; height: 10px; border-radius: 50%; background: #475569"></span><span style="width: 10px; height: 10px; border-radius: 50%; background: #475569"></span>
+      <span style="margin-left: 10px">During the meeting</span>
+    </div>
+    <div style="flex-grow: 1; padding: 18px 20px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.75; color: #E2E8F0; white-space: pre-wrap">
+<span style="color: #94A3B8">$</span> agent-board watch
+<span style="color: #86EFAC">●</span> Linked to Payments · 3 peers
+<span style="color: #94A3B8">  watching board/ as Dewi (Product)</span>
+
+<span style="color: #94A3B8">14:02</span> <span style="color: #93C5FD">+</span> checkout/flow.md      <span style="color: #94A3B8">new block · frame checkout</span>
+<span style="color: #94A3B8">14:05</span> <span style="color: #93C5FD">~</span> checkout/flow.md      <span style="color: #94A3B8">streamed</span>
+<span style="color: #94A3B8">14:09</span> <span style="color: #93C5FD">+</span> checkout/card-form.html
+<span style="color: #94A3B8">14:20</span> <span style="color: #93C5FD">+</span> refunds/notes.md      <span style="color: #94A3B8">new frame refunds</span>
+<span style="color: #94A3B8">14:22</span> <span style="color: #FDE68A">→</span> refunds/notes.md → refunds/scope.md  <span style="color: #94A3B8">rename · same block</span>
+<span style="color: #94A3B8">14:30</span> <span style="color: #FCA5A5">−</span> checkout/old-flow.md  <span style="color: #94A3B8">block hidden · in history</span>
+
+<span style="color: #94A3B8">$</span> agent-board export &gt; board.json
+<span style="color: #86EFAC">✓</span> 3 frames · 14 blocks · 6 edges · 1 decision · 5 slices
+
+<span style="color: #94A3B8">$</span> agent-board slices import board/checkout/slices.md
+<span style="color: #86EFAC">✓</span> 5 draft slice cards added to checkout
+<span style="color: #FDE68A">!</span> 1 slice is size L · flagged "slice again"</div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":820}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

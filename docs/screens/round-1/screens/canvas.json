@@ -1,0 +1,20 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-11-20T10:00:00Z"},
+  "title": "agent-board v1 screens",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 960, "title": "1 · Board — converge", "expand": "fill"},
+    "Block.dc.html": {"x": 1520, "y": 0, "w": 1440, "h": 960, "title": "2 · Block detail — changed after agreement", "expand": "fill"},
+    "Slices.dc.html": {"x": 0, "y": 1080, "w": 1440, "h": 1000, "title": "3 · Slice planning", "expand": "fill"},
+    "Join.dc.html": {"x": 1520, "y": 1080, "w": 1440, "h": 820, "title": "4 · Join with a code"},
+    "Settings.dc.html": {"x": 0, "y": 2200, "w": 1440, "h": 900, "title": "5 · Devices and network", "expand": "fill"},
+    "Cli.dc.html": {"x": 1520, "y": 2200, "w": 1200, "h": 820, "title": "6 · CLI"}
+  },
+  "order": ["Main.dc.html", "Block.dc.html", "Slices.dc.html", "Join.dc.html", "Settings.dc.html", "Cli.dc.html"],
+  "notes": {
+    "title": {"x": 0, "y": -300, "text": "agent-board · v1 screens", "kind": "title1", "maxW": 2960}
+  },
+  "designSystems": []
+}

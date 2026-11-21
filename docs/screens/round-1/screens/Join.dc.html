@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Join with a code</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1D4ED8}a:hover{color:#1E3A8A}
+</style>
+</helmet>
+<div style="width: 1440px; height: 820px; box-sizing: border-box; padding: 40px; background: #E5E8ED; font-family: Inter, system-ui, sans-serif; color: #111827; font-size: 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px">
+
+  <section style="display: flex; flex-direction: column; gap: 12px">
+    <div style="font-size: 13px; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.05em">Guest · Rina's browser</div>
+    <div style="flex-grow: 1; background: #F2F4F7; border-radius: 14px; border: 1px solid #C4CAD3; overflow: hidden; display: flex; flex-direction: column">
+      <div style="display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #FFFFFF; border-bottom: 1px solid #D9DEE5">
+        <span style="width: 10px; height: 10px; border-radius: 50%; background: #D1D5DB"></span><span style="width: 10px; height: 10px; border-radius: 50%; background: #D1D5DB"></span><span style="width: 10px; height: 10px; border-radius: 50%; background: #D1D5DB"></span>
+        <span style="margin-left: 12px; flex-grow: 1; padding: 5px 10px; border-radius: 6px; background: #F2F4F7; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #4B5563">agent-board.pages.dev/b/payments#••••••••</span>
+      </div>
+      <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; padding: 32px">
+        <div style="width: 440px; background: #FFFFFF; border-radius: 16px; padding: 32px; box-shadow: 0 8px 30px rgba(17,24,39,0.08); display: flex; flex-direction: column; gap: 18px">
+          <svg width="32" height="32" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="11" height="11" rx="3" fill="#2563EB"></rect><rect x="14" y="1" width="11" height="11" rx="3" fill="#C2410C"></rect><rect x="1" y="14" width="11" height="11" rx="3" fill="#15803D"></rect><rect x="14" y="14" width="11" height="11" rx="3" fill="#6D28D9"></rect></svg>
+          <div>
+            <h1 style="margin: 0 0 6px; font-family: 'Space Grotesk', sans-serif; font-size: 24px">Join "Payments"</h1>
+            <p style="margin: 0; color: #4B5563; line-height: 1.5">We asked the team to let you in. A member will send you a code in Slack.</p>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <label for="nm" style="font-size: 13px; font-weight: 500">Your name</label>
+            <input id="nm" type="text" value="Rina" style="min-height: 44px; padding: 0 12px; border: 1px solid #D1D5DB; border-radius: 8px; font: inherit">
+          </div>
+          <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 6px">
+            <legend style="font-size: 13px; font-weight: 500; margin-bottom: 6px">Your side</legend>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+              <label style="display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 2px solid #2563EB; border-radius: 8px; background: #EAF1FF; font-weight: 500"><input type="radio" name="side" checked>Product</label>
+              <label style="display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-weight: 500"><input type="radio" name="side">Engineering</label>
+            </div>
+          </fieldset>
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <label for="code" style="font-size: 13px; font-weight: 500">Join code</label>
+            <input id="code" type="text" inputmode="numeric" value="482 9" style="min-height: 52px; padding: 0 14px; border: 2px solid #111827; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 24px; letter-spacing: 0.15em">
+            <span style="font-size: 12px; color: #4B5563">6 digits. A wrong code stops the join.</span>
+          </div>
+          <button style="min-height: 48px; border: 0; border-radius: 10px; background: #111827; color: #FFFFFF; font: inherit; font-weight: 600">Join board</button>
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #4B5563"><span style="width: 8px; height: 8px; border-radius: 50%; background: #B45309"></span>Waiting · Dewi's page shows your request</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 12px">
+    <div style="font-size: 13px; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.05em">Member · Dewi's board</div>
+    <div style="flex-grow: 1; border-radius: 14px; border: 1px solid #C4CAD3; overflow: hidden; position: relative; background-color: #F2F4F7; background-image: radial-gradient(#C9CFD8 1px, transparent 1px); background-size: 20px 20px">
+      <div aria-hidden="true" style="position: absolute; left: 40px; top: 70px; width: 260px; height: 180px; border: 2px solid #9CA3AF; border-radius: 12px; background: rgba(255,255,255,0.55)"></div>
+      <div aria-hidden="true" style="position: absolute; left: 330px; top: 90px; width: 180px; height: 120px; border-radius: 10px; background: #FFFFFF; border: 1px solid #D9DEE5"></div>
+
+      <div role="dialog" aria-label="Join request" style="position: absolute; right: 24px; top: 24px; width: 360px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 12px 36px rgba(17,24,39,0.18); padding: 20px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; align-items: center; gap: 10px">
+          <span style="width: 36px; height: 36px; border-radius: 50%; background: #E5E8ED; display: flex; align-items: center; justify-content: center; font-weight: 600">R</span>
+          <div><div style="font-weight: 600">Rina wants to join</div><div style="font-size: 12px; color: #4B5563">Product · new device · Chrome on Mac</div></div>
+        </div>
+        <div style="padding: 14px; border-radius: 10px; background: #F2F4F7; text-align: center">
+          <div style="font-size: 12px; color: #4B5563; margin-bottom: 4px">Send this code to Rina in Slack</div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 34px; font-weight: 500; letter-spacing: 0.12em">482 917</div>
+        </div>
+        <button style="min-height: 44px; border-radius: 8px; border: 1px solid #D9DEE5; background: #FFFFFF; font: inherit; font-weight: 500">Copy code</button>
+        <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #4B5563">Only send it if you know this is Rina. The code is part of the key exchange, so a person in the middle can't use it.</p>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+          <button style="min-height: 44px; border-radius: 8px; border: 1px solid #B91C1C; background: #FFFFFF; color: #991B1B; font: inherit; font-weight: 600">Deny</button>
+          <span style="display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 8px; background: #F2F4F7; color: #4B5563; font-size: 13px">Waiting for code…</span>
+        </div>
+      </div>
+
+      <div style="position: absolute; left: 24px; right: 24px; bottom: 24px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+        <div style="background: #FFFFFF; border-radius: 10px; padding: 12px; font-size: 13px; line-height: 1.45"><strong style="display: block; margin-bottom: 2px">1 · Link in Slack</strong>The room secret is after the #. It never goes to a server.</div>
+        <div style="background: #FFFFFF; border-radius: 10px; padding: 12px; font-size: 13px; line-height: 1.45"><strong style="display: block; margin-bottom: 2px">2 · Code in Slack</strong>Any approved member sees the request and sends the code.</div>
+        <div style="background: #FFFFFF; border-radius: 10px; padding: 12px; font-size: 13px; line-height: 1.45"><strong style="display: block; margin-bottom: 2px">3 · Device approved</strong>Next time this device joins with no prompt.</div>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":820}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

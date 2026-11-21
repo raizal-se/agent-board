@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Devices and network</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1D4ED8}a:hover{color:#1E3A8A}
+</style>
+</helmet>
+<div style="min-height: 900px; background: #F2F4F7; font-family: Inter, system-ui, sans-serif; color: #111827; font-size: 14px">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 24px; background: #FFFFFF; border-bottom: 1px solid #D9DEE5">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 10px; border-radius: 8px; color: #374151; text-decoration: none; font-weight: 500">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>Back to board</a>
+    <span style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 18px">Payments · Board settings</span>
+  </header>
+
+  <div style="max-width: 1440px; box-sizing: border-box; padding: 24px; display: flex; flex-wrap: wrap; gap: 24px">
+
+    <section style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px">
+        <div style="flex: 1 1 300px">
+          <h2 style="margin: 0 0 4px; font-family: 'Space Grotesk', sans-serif; font-size: 22px">Approved devices</h2>
+          <p style="margin: 0; color: #4B5563">This list travels with the board. Any approved member can approve or revoke a device.</p>
+        </div>
+        <button style="min-height: 44px; padding: 0 16px; border-radius: 8px; border: 0; background: #111827; color: #FFFFFF; font: inherit; font-weight: 600">Copy invite link</button>
+      </div>
+      <div style="overflow-x: auto; background: #FFFFFF; border: 1px solid #D9DEE5; border-radius: 12px">
+        <table style="width: 100%; min-width: 720px; border-collapse: collapse; font-size: 13px">
+          <thead>
+            <tr style="text-align: left; color: #4B5563; background: #F9FAFB">
+              <th style="padding: 12px 16px; font-weight: 500">Person</th>
+              <th style="padding: 12px 16px; font-weight: 500">Side</th>
+              <th style="padding: 12px 16px; font-weight: 500">Device</th>
+              <th style="padding: 12px 16px; font-weight: 500">Approved by</th>
+              <th style="padding: 12px 16px; font-weight: 500">Last seen</th>
+              <th style="padding: 12px 16px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-top: 1px solid #E5E7EB"><td style="padding: 12px 16px; font-weight: 600">Dewi</td><td style="padding: 12px 16px; color: #1E40AF">Product</td><td style="padding: 12px 16px">Chrome · MacBook</td><td style="padding: 12px 16px; color: #4B5563">created board</td><td style="padding: 12px 16px">Online</td><td style="padding: 12px 16px; text-align: right"><button style="min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #D9DEE5; background: #FFFFFF; font: inherit; color: #991B1B">Revoke</button></td></tr>
+            <tr style="border-top: 1px solid #E5E7EB"><td style="padding: 12px 16px; font-weight: 600">Dewi</td><td style="padding: 12px 16px; color: #1E40AF">Product</td><td style="padding: 12px 16px">CLI · MacBook</td><td style="padding: 12px 16px; color: #4B5563">Dewi</td><td style="padding: 12px 16px">Online</td><td style="padding: 12px 16px; text-align: right"><button style="min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #D9DEE5; background: #FFFFFF; font: inherit; color: #991B1B">Revoke</button></td></tr>
+            <tr style="border-top: 1px solid #E5E7EB"><td style="padding: 12px 16px; font-weight: 600">Arif</td><td style="padding: 12px 16px; color: #9A3412">Engineering</td><td style="padding: 12px 16px">Firefox · Linux</td><td style="padding: 12px 16px; color: #4B5563">Dewi</td><td style="padding: 12px 16px">Online</td><td style="padding: 12px 16px; text-align: right"><button style="min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #D9DEE5; background: #FFFFFF; font: inherit; color: #991B1B">Revoke</button></td></tr>
+            <tr style="border-top: 1px solid #E5E7EB"><td style="padding: 12px 16px; font-weight: 600">Tan</td><td style="padding: 12px 16px; color: #1E40AF">Product</td><td style="padding: 12px 16px">Safari · MacBook</td><td style="padding: 12px 16px; color: #4B5563">Arif</td><td style="padding: 12px 16px">Online</td><td style="padding: 12px 16px; text-align: right"><button style="min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #D9DEE5; background: #FFFFFF; font: inherit; color: #991B1B">Revoke</button></td></tr>
+            <tr style="border-top: 1px solid #E5E7EB"><td style="padding: 12px 16px; font-weight: 600">Mei Ling</td><td style="padding: 12px 16px; color: #9A3412">Engineering</td><td style="padding: 12px 16px">Chrome · Windows</td><td style="padding: 12px 16px; color: #4B5563">Arif</td><td style="padding: 12px 16px">Online, no link</td><td style="padding: 12px 16px; text-align: right"><button style="min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #D9DEE5; background: #FFFFFF; font: inherit; color: #991B1B">Revoke</button></td></tr>
+            <tr style="border-top: 1px solid #E5E7EB; background: #F9FAFB"><td style="padding: 12px 16px; font-weight: 600">Rina</td><td style="padding: 12px 16px; color: #1E40AF">Product</td><td style="padding: 12px 16px">Chrome · Mac</td><td style="padding: 12px 16px; color: #78350F">waiting for code</td><td style="padding: 12px 16px">—</td><td style="padding: 12px 16px; text-align: right"><button style="min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #D9DEE5; background: #FFFFFF; font: inherit; color: #991B1B">Deny</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+        <div style="background: #FFFFFF; border: 1px solid #D9DEE5; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+          <h3 style="margin: 0; font-size: 15px">Save a copy</h3>
+          <p style="margin: 0; font-size: 13px; color: #4B5563; line-height: 1.5">The board lives in each person's browser. Save it as a JSON file to keep a backup.</p>
+          <button style="align-self: flex-start; min-height: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid #D9DEE5; background: #FFFFFF; font: inherit; font-weight: 500">Save board as JSON</button>
+        </div>
+        <div style="background: #FFFFFF; border: 1px solid #D9DEE5; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+          <h3 style="margin: 0; font-size: 15px">Room secret</h3>
+          <p style="margin: 0; font-size: 13px; color: #4B5563; line-height: 1.5">The secret is in the link after the #. Relays only see encrypted handshakes.</p>
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 8px 10px; background: #F2F4F7; border-radius: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">…/b/payments#k7Pq••••••••••</span>
+        </div>
+      </div>
+    </section>
+
+    <aside style="flex: 1 1 360px; display: flex; flex-direction: column; gap: 16px">
+      <section style="background: #FFFFFF; border: 1px solid #D9DEE5; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+        <h2 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 18px">Network</h2>
+        <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px">
+          <div style="display: flex; align-items: center; gap: 10px"><span style="width: 10px; height: 10px; border-radius: 50%; background: #15803D"></span><span style="font-weight: 600">Arif</span><span style="color: #4B5563">Jakarta</span><span style="margin-left: auto; color: #14532D">Direct · 38 ms</span></div>
+          <div style="display: flex; align-items: center; gap: 10px"><span style="width: 10px; height: 10px; border-radius: 50%; background: #15803D"></span><span style="font-weight: 600">Tan</span><span style="color: #4B5563">Singapore</span><span style="margin-left: auto; color: #14532D">Direct · 21 ms</span></div>
+          <div style="display: flex; align-items: center; gap: 10px"><span style="width: 10px; height: 10px; border-radius: 50%; background: #15803D"></span><span style="font-weight: 600">Dewi (CLI)</span><span style="color: #4B5563">same laptop</span><span style="margin-left: auto; color: #14532D">Direct · 1 ms</span></div>
+          <div style="display: flex; align-items: center; gap: 10px"><span style="width: 10px; height: 10px; border-radius: 50%; background: #B91C1C"></span><span style="font-weight: 600">Mei Ling</span><span style="color: #4B5563">Singapore</span><span style="margin-left: auto; color: #991B1B">No direct link</span></div>
+        </div>
+      </section>
+
+      <section role="alert" style="background: #FDE2E2; border: 1px solid #B91C1C; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; color: #7F1D1D">
+        <h3 style="margin: 0; font-size: 15px">We can't reach Mei Ling directly</h3>
+        <p style="margin: 0; font-size: 13px; line-height: 1.55">Her network blocks direct peer links. v1 has no relay server, so her changes don't sync with you right now. She still syncs with anyone she can reach.</p>
+        <ul style="margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.6">
+          <li>Try another network, for example a phone hotspot.</li>
+          <li>Later: Tailscale or a company VPN.</li>
+        </ul>
+        <button style="align-self: flex-start; min-height: 44px; padding: 0 14px; border-radius: 8px; border: 0; background: #7F1D1D; color: #FFFFFF; font: inherit; font-weight: 600">Try again</button>
+      </section>
+
+      <section style="background: #FFFFFF; border: 1px solid #D9DEE5; border-radius: 12px; padding: 16px; font-size: 13px; line-height: 1.6; color: #374151">
+        <h3 style="margin: 0 0 6px; font-size: 15px; color: #111827">How we connect</h3>
+        Peers find each other through public relays (Nostr). Then they talk directly with WebRTC. Public STUN servers help with NAT. No server holds the board.
+      </section>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

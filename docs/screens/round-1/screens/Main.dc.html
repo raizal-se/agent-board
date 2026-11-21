@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Board — converge</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Caveat:wght@500;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#1D4ED8}a:hover{color:#1E3A8A}
+</style>
+</helmet>
+<div style="position: relative; height: 960px; overflow: hidden; background-color: #F5F6F8; background-image: radial-gradient(#CDD2DA 1.2px, transparent 1.2px); background-size: 24px 24px; font-family: Inter, system-ui, sans-serif; color: #111827; font-size: 13px">
+
+  <div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 1440px; height: 960px">
+
+    <div style="position: absolute; left: 110px; top: 92px; width: 1070px; height: 800px; border: 2px dashed #9CA3AF; border-radius: 18px"></div>
+    <div style="position: absolute; left: 110px; top: 62px; padding: 4px 12px; border-radius: 8px; background: #111827; color: #FFFFFF; font-weight: 700; font-size: 15px">checkout</div>
+
+    <div style="position: absolute; left: 134px; top: 118px; width: 440px; height: 410px; border-radius: 40px 28px 52px 24px; background: rgba(37,99,235,0.09)"></div>
+    <div style="position: absolute; left: 156px; top: 128px; font-weight: 700; font-size: 11px; letter-spacing: 0.12em; color: #1E40AF">PRODUCT</div>
+    <div style="position: absolute; left: 598px; top: 108px; width: 560px; height: 440px; border-radius: 28px 48px 30px 56px; background: rgba(234,88,12,0.09)"></div>
+    <div style="position: absolute; left: 1050px; top: 120px; font-weight: 700; font-size: 11px; letter-spacing: 0.12em; color: #9A3412">ENGINEERING</div>
+    <div style="position: absolute; left: 140px; top: 560px; width: 520px; height: 310px; border-radius: 30px 50px 26px 40px; background: rgba(22,163,74,0.10)"></div>
+    <div style="position: absolute; left: 162px; top: 572px; font-weight: 700; font-size: 11px; letter-spacing: 0.12em; color: #14532D">AGREED</div>
+    <div style="position: absolute; left: 686px; top: 572px; width: 480px; height: 300px; border-radius: 46px 26px 44px 30px; background: rgba(109,40,217,0.09)"></div>
+    <div style="position: absolute; left: 1080px; top: 584px; font-weight: 700; font-size: 11px; letter-spacing: 0.12em; color: #4C1D95">SLICES</div>
+
+    <div style="position: absolute; left: 160px; top: 160px; width: 228px; background: #FFFFFF; border-radius: 10px; box-shadow: 0 2px 8px rgba(17,24,39,0.10)">
+      <div style="padding: 6px 10px; border-bottom: 1px solid #EEF0F3; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #4B5563">flow.md · Dewi</div>
+      <div style="padding: 8px 10px">
+        <div style="font-weight: 700; margin-bottom: 4px">Checkout flow</div>
+        <div style="color: #4B5563; font-size: 12px; line-height: 1.45">Cart, then intent, then card form. No form before the intent.</div>
+        <div style="display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 10px"><span style="padding: 3px 6px; border: 1px solid #6B7280; border-radius: 4px">Cart</span>→<span style="padding: 3px 6px; border: 1px solid #6B7280; border-radius: 4px">Intent</span>→<span style="padding: 3px 6px; border: 1px solid #6B7280; border-radius: 10px">Form</span></div>
+      </div>
+    </div>
+
+    <div style="position: absolute; left: 300px; top: 300px; width: 250px; background: #FFFFFF; border-radius: 10px; box-shadow: 0 6px 18px rgba(17,24,39,0.14); transform: rotate(-1.2deg)">
+      <div style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid #EEF0F3; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #4B5563">card-form.html<span style="margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: #2563EB; box-shadow: 0 0 0 4px rgba(37,99,235,0.25)"></span></div>
+      <div style="padding: 10px">
+        <div style="padding: 10px; border: 1px dashed #9CA3AF; border-radius: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 10px; color: #374151">
+          <span>Card number</span><span style="height: 20px; border: 1px solid #D1D5DB; border-radius: 4px"></span>
+          <div style="display: flex; gap: 6px"><span style="flex: 1; height: 20px; border: 1px solid #D1D5DB; border-radius: 4px"></span><span style="flex: 1; height: 20px; border: 1px solid #D1D5DB; border-radius: 4px"></span></div>
+          <span style="height: 22px; border-radius: 4px; background: #111827; color: #FFFFFF; display: flex; align-items: center; justify-content: center">Pay</span>
+        </div>
+        <div style="margin-top: 6px; font-size: 11px; color: #1E40AF">Dewi's agent is writing…</div>
+      </div>
+    </div>
+
+    <div style="position: absolute; left: 420px; top: 150px; width: 120px; height: 104px; padding: 10px; box-sizing: border-box; background: #FEF08A; box-shadow: 0 3px 6px rgba(17,24,39,0.15); transform: rotate(3deg); font-family: Caveat, cursive; font-size: 20px; line-height: 1.05">what if the card fails??</div>
+    <div style="position: absolute; left: 450px; top: 220px; width: 112px; height: 96px; padding: 10px; box-sizing: border-box; background: #FDE047; box-shadow: 0 3px 6px rgba(17,24,39,0.15); transform: rotate(-4deg); font-family: Caveat, cursive; font-size: 20px; line-height: 1.05">Apple Pay later, not v1</div>
+    <div style="position: absolute; left: 180px; top: 330px; width: 100px; height: 88px; padding: 10px; box-sizing: border-box; background: #A7F3D0; box-shadow: 0 3px 6px rgba(17,24,39,0.15); transform: rotate(-2deg); font-family: Caveat, cursive; font-size: 20px; line-height: 1.05">+1 to intent first</div>
+
+    <div style="position: absolute; left: 630px; top: 150px; width: 250px; background: #FFFFFF; border-radius: 10px; box-shadow: 0 2px 8px rgba(17,24,39,0.10); outline: 2px solid #2563EB; outline-offset: 4px">
+      <div style="padding: 6px 10px; border-bottom: 1px solid #EEF0F3; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #4B5563">api.md · Arif</div>
+      <div style="padding: 8px 10px">
+        <div style="font-weight: 700; margin-bottom: 4px">Checkout API</div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.7; color: #374151">POST /intents → 201<br>POST /intents/:id/confirm<br>GET /intents/:id</div>
+      </div>
+    </div>
+    <span style="position: absolute; left: 622px; top: 142px; width: 10px; height: 10px; background: #FFFFFF; border: 2px solid #2563EB; border-radius: 2px"></span>
+    <span style="position: absolute; left: 878px; top: 142px; width: 10px; height: 10px; background: #FFFFFF; border: 2px solid #2563EB; border-radius: 2px"></span>
+    <span style="position: absolute; left: 622px; top: 268px; width: 10px; height: 10px; background: #FFFFFF; border: 2px solid #2563EB; border-radius: 2px"></span>
+    <span style="position: absolute; left: 878px; top: 268px; width: 10px; height: 10px; background: #FFFFFF; border: 2px solid #2563EB; border-radius: 2px"></span>
+
+    <div style="position: absolute; left: 900px; top: 200px; width: 240px; background: #FFFFFF; border-radius: 10px; box-shadow: 0 2px 8px rgba(17,24,39,0.10); transform: rotate(1.5deg)">
+      <div style="padding: 6px 10px; border-bottom: 1px solid #EEF0F3; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #4B5563">payment-sequence.md · Mei Ling</div>
+      <div style="padding: 10px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; font-size: 10px; text-align: center">
+        <span style="padding: 3px; border: 1px solid #6B7280; border-radius: 4px">Web</span><span style="padding: 3px; border: 1px solid #6B7280; border-radius: 4px">API</span><span style="padding: 3px; border: 1px solid #6B7280; border-radius: 4px">PSP</span>
+        <span style="grid-column: 1 / span 2; border-bottom: 1px solid #374151">create →</span><span></span>
+        <span></span><span style="grid-column: 2 / span 2; border-bottom: 1px solid #374151">intent →</span>
+        <span style="grid-column: 1 / span 2; border-bottom: 1px dashed #374151">← 201</span><span></span>
+      </div>
+    </div>
+
+    <div style="position: absolute; left: 700px; top: 340px; width: 190px; padding: 10px; background: #FFFFFF; border-radius: 10px; box-shadow: 0 2px 8px rgba(17,24,39,0.10); transform: rotate(-2deg)">
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #4B5563; margin-bottom: 6px">db-schema.md · Arif</div>
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; line-height: 1.6">intents<br>· id · amount · status<br>· psp_ref · created_at</div>
+    </div>
+    <div style="position: absolute; left: 930px; top: 380px; width: 128px; height: 108px; padding: 10px; box-sizing: border-box; background: #FBCFE8; box-shadow: 0 3px 6px rgba(17,24,39,0.15); transform: rotate(4deg); font-family: Caveat, cursive; font-size: 21px; line-height: 1.05">need idempotency key!!</div>
+    <div style="position: absolute; left: 1040px; top: 430px; width: 104px; height: 86px; padding: 10px; box-sizing: border-box; background: #FED7AA; box-shadow: 0 3px 6px rgba(17,24,39,0.15); transform: rotate(-3deg); font-family: Caveat, cursive; font-size: 20px; line-height: 1.05">PSP timeout = 30s?</div>
+
+    <div style="position: absolute; left: 170px; top: 600px; width: 250px; padding: 12px; background: #FFFFFF; border: 2px solid #16A34A; border-radius: 12px; box-shadow: 0 2px 8px rgba(17,24,39,0.10)">
+      <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: #14532D">DECISION</div>
+      <div style="font-weight: 700; margin: 4px 0 8px; line-height: 1.35">Create a payment intent before the card form.</div>
+      <div style="font-size: 11px; color: #4B5563">Dewi (Product) · Arif (Eng) agreed</div>
+    </div>
+    <div style="position: absolute; left: 440px; top: 640px; width: 180px; padding: 10px; background: #FFFFFF; border-radius: 10px; box-shadow: 0 2px 8px rgba(17,24,39,0.10); transform: rotate(2deg)">
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #4B5563">api.md · snapshot</div>
+      <div style="margin-top: 6px; display: inline-block; padding: 3px 7px; border-radius: 6px; background: #FEF3C7; color: #78350F; font-size: 11px; font-weight: 700">Changed after agreement</div>
+    </div>
+    <div style="position: absolute; left: 230px; top: 740px; width: 170px; padding: 10px; background: #FFFFFF; border-radius: 10px; box-shadow: 0 2px 8px rgba(17,24,39,0.10); transform: rotate(-1.5deg)">
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #4B5563">flow.md · snapshot</div>
+      <div style="margin-top: 4px; font-size: 11px; color: #14532D">matches file</div>
+    </div>
+    <div style="position: absolute; left: 470px; top: 760px; width: 120px; height: 92px; padding: 10px; box-sizing: border-box; background: #FEF08A; box-shadow: 0 3px 6px rgba(17,24,39,0.15); transform: rotate(5deg); font-family: Caveat, cursive; font-size: 20px; line-height: 1.05">re-agree after break?</div>
+
+    <div style="position: absolute; left: 712px; top: 616px; width: 200px; padding: 10px; background: #FFFFFF; border-radius: 10px; border-left: 0; box-shadow: 0 2px 8px rgba(17,24,39,0.10)">
+      <div style="display: flex; gap: 6px; align-items: center; font-size: 10px"><span style="padding: 1px 6px; border-radius: 4px; background: #111827; color: #FFFFFF; font-weight: 700">S</span><span style="color: #4B5563">1/2 accepts</span></div>
+      <div style="font-weight: 700; margin-top: 4px; line-height: 1.3">API: add payment intent</div>
+    </div>
+    <div style="position: absolute; left: 820px; top: 690px; width: 200px; padding: 10px; background: #FFFFFF; border-radius: 10px; box-shadow: 0 6px 16px rgba(17,24,39,0.14); transform: rotate(-3deg)">
+      <div style="display: flex; gap: 6px; align-items: center; font-size: 10px"><span style="padding: 1px 6px; border-radius: 4px; background: #374151; color: #FFFFFF; font-weight: 700">M</span><span style="color: #4B5563">draft</span></div>
+      <div style="font-weight: 700; margin-top: 4px; line-height: 1.3">Card form after intent</div>
+    </div>
+    <div style="position: absolute; left: 960px; top: 610px; width: 180px; padding: 10px; background: #FFFFFF; border: 2px dashed #B91C1C; border-radius: 10px; transform: rotate(2.5deg)">
+      <div style="display: flex; gap: 6px; align-items: center; font-size: 10px"><span style="padding: 1px 6px; border-radius: 4px; background: #B91C1C; color: #FFFFFF; font-weight: 700">L</span><span style="color: #991B1B; font-weight: 700">slice again</span></div>
+      <div style="font-weight: 700; margin-top: 4px; line-height: 1.3">Form + 3DS + retries</div>
+    </div>
+    <div style="position: absolute; left: 1040px; top: 740px; width: 110px; height: 90px; padding: 10px; box-sizing: border-box; background: #DDD6FE; box-shadow: 0 3px 6px rgba(17,24,39,0.15); transform: rotate(-4deg); font-family: Caveat, cursive; font-size: 20px; line-height: 1.05">split 3DS out</div>
+
+    <svg width="1440" height="960" style="position: absolute; left: 0; top: 0">
+      <defs><marker id="ah" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="#374151"></path></marker></defs>
+      <path d="M 388 190 C 470 110, 560 120, 626 180" stroke="#374151" stroke-width="2" fill="none" stroke-linecap="round" marker-end="url(#ah)"></path>
+      <path d="M 470 254 C 470 280, 440 290, 430 302" stroke="#9CA3AF" stroke-width="1.6" fill="none" stroke-dasharray="4 4" marker-end="url(#ah)"></path>
+      <path d="M 420 650 C 440 650, 440 660, 446 664" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#ah)"></path>
+      <path d="M 760 270 C 760 470, 560 520, 540 636" stroke="#374151" stroke-width="2" fill="none" stroke-dasharray="6 5" marker-end="url(#ah)"></path>
+      <path d="M 714 650 C 600 560, 470 600, 424 622" stroke="#6D28D9" stroke-width="2" fill="none" marker-end="url(#ah)"></path>
+      <path d="M 1048 610 C 1050 560, 1000 530, 990 490" stroke="#B91C1C" stroke-width="1.6" fill="none" stroke-dasharray="3 4"></path>
+    </svg>
+    <span style="position: absolute; left: 496px; top: 116px; padding: 1px 7px; border-radius: 6px; background: #FFFFFF; border: 1px solid #D1D5DB; font-size: 11px">needs</span>
+    <span style="position: absolute; left: 640px; top: 500px; padding: 1px 7px; border-radius: 6px; background: #FFFFFF; border: 1px solid #D1D5DB; font-size: 11px">snapshot</span>
+    <span style="position: absolute; left: 560px; top: 574px; padding: 1px 7px; border-radius: 6px; background: #FFFFFF; border: 1px solid #C4B5FD; font-size: 11px; color: #4C1D95">covers</span>
+
+    <span style="position: absolute; left: 372px; top: 146px; width: 26px; height: 26px; border-radius: 13px 13px 13px 2px; background: #111827; color: #FFFFFF; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">2</span>
+    <span style="position: absolute; left: 868px; top: 136px; width: 26px; height: 26px; border-radius: 13px 13px 13px 2px; background: #111827; color: #FFFFFF; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">3</span>
+    <span style="position: absolute; left: 600px; top: 626px; width: 26px; height: 26px; border-radius: 13px 13px 13px 2px; background: #111827; color: #FFFFFF; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">1</span>
+
+    <div style="position: absolute; left: 1210px; top: 110px; width: 150px; height: 128px; padding: 12px; box-sizing: border-box; background: #FEF08A; box-shadow: 0 3px 6px rgba(17,24,39,0.15); transform: rotate(-3deg); font-family: Caveat, cursive; font-size: 22px; line-height: 1.05">can we store last 4 digits? ask legal<div style="font-family: Inter, sans-serif; font-size: 10px; margin-top: 6px; color: #713F12">Tan</div></div>
+    <div style="position: absolute; left: 1250px; top: 260px; width: 140px; height: 112px; padding: 12px; box-sizing: border-box; background: #BFDBFE; box-shadow: 0 3px 6px rgba(17,24,39,0.15); transform: rotate(2deg); font-family: Caveat, cursive; font-size: 22px; line-height: 1.05">refunds = own feature<div style="font-family: Inter, sans-serif; font-size: 10px; margin-top: 6px; color: #1E3A8A">Arif</div></div>
+    <div style="position: absolute; left: 1214px; top: 420px; font-family: Caveat, cursive; font-weight: 700; font-size: 28px; color: #374151; transform: rotate(-2deg)">parking lot</div>
+    <div style="position: absolute; left: 1208px; top: 466px; width: 110px; height: 90px; padding: 10px; box-sizing: border-box; background: #FDE047; box-shadow: 0 3px 6px rgba(17,24,39,0.15); transform: rotate(-5deg); font-family: Caveat, cursive; font-size: 20px; line-height: 1.05">multi-currency?</div>
+    <div style="position: absolute; left: 1290px; top: 500px; width: 110px; height: 90px; padding: 10px; box-sizing: border-box; background: #FBCFE8; box-shadow: 0 3px 6px rgba(17,24,39,0.15); transform: rotate(4deg); font-family: Caveat, cursive; font-size: 20px; line-height: 1.05">saved cards v2</div>
+    <div style="position: absolute; left: 1236px; top: 568px; width: 110px; height: 90px; padding: 10px; box-sizing: border-box; background: #A7F3D0; box-shadow: 0 3px 6px rgba(17,24,39,0.15); transform: rotate(-1deg); font-family: Caveat, cursive; font-size: 20px; line-height: 1.05">fraud check who owns?</div>
+
+    <div style="position: absolute; left: 1220px; top: 720px; width: 400px; height: 300px; border: 2px dashed #9CA3AF; border-radius: 18px"></div>
+    <div style="position: absolute; left: 1220px; top: 690px; padding: 4px 12px; border-radius: 8px; background: #111827; color: #FFFFFF; font-weight: 700; font-size: 15px">refunds</div>
+    <div style="position: absolute; left: 1250px; top: 760px; width: 180px; padding: 10px; background: #FFFFFF; border-radius: 10px; box-shadow: 0 2px 8px rgba(17,24,39,0.10); font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #4B5563">scope.md · Tan</div>
+
+    <div style="position: absolute; left: 780px; top: 300px; display: flex; align-items: flex-start"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 8z" fill="#C2410C" stroke="#FFFFFF" stroke-width="1.5"></path></svg><span style="margin-top: 14px; padding: 2px 8px; border-radius: 6px; background: #C2410C; color: #FFFFFF; font-size: 12px; font-weight: 600">Arif</span></div>
+    <div style="position: absolute; left: 560px; top: 470px; display: flex; align-items: flex-start"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 8z" fill="#1D4ED8" stroke="#FFFFFF" stroke-width="1.5"></path></svg><span style="margin-top: 14px; padding: 2px 8px; border-radius: 6px; background: #1D4ED8; color: #FFFFFF; font-size: 12px; font-weight: 600">Tan</span></div>
+    <div style="position: absolute; left: 1100px; top: 680px; display: flex; align-items: flex-start"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 8z" fill="#9A3412" stroke="#FFFFFF" stroke-width="1.5"></path></svg><span style="margin-top: 14px; padding: 2px 8px; border-radius: 6px; background: #9A3412; color: #FFFFFF; font-size: 12px; font-weight: 600">Mei Ling</span></div>
+  </div>
+
+  <div style="position: absolute; left: 16px; top: 16px; display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 8px; background: #FFFFFF; border-radius: 12px; box-shadow: 0 2px 10px rgba(17,24,39,0.12)">
+    <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="11" height="11" rx="3" fill="#2563EB"></rect><rect x="14" y="1" width="11" height="11" rx="3" fill="#EA580C"></rect><rect x="1" y="14" width="11" height="11" rx="3" fill="#16A34A"></rect><rect x="14" y="14" width="11" height="11" rx="3" fill="#7C3AED"></rect></svg>
+    <span style="font-weight: 700">Payments</span>
+    <span style="width: 1px; height: 18px; background: #E5E7EB"></span>
+    <a href="Slices.dc.html" style="padding: 4px 10px; border-radius: 8px; background: #F3F4F6; color: #111827; text-decoration: none; font-weight: 500">Converge ▾</a>
+    <button aria-label="Export board as JSON" style="width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: #374151; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></svg></button>
+  </div>
+
+  <div style="position: absolute; right: 16px; top: 16px; display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 12px; background: #FFFFFF; border-radius: 12px; box-shadow: 0 2px 10px rgba(17,24,39,0.12)">
+    <a href="Settings.dc.html" style="display: flex; align-items: center; gap: 6px; color: #374151; text-decoration: none; font-size: 12px"><span style="width: 8px; height: 8px; border-radius: 50%; background: #16A34A"></span>3 of 4 linked</a>
+    <div style="display: flex">
+      <span style="width: 30px; height: 30px; border-radius: 50%; background: #2563EB; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 700; border: 2px solid #FFFFFF">D</span>
+      <span style="width: 30px; height: 30px; border-radius: 50%; background: #1D4ED8; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 700; border: 2px solid #FFFFFF; margin-left: -8px">T</span>
+      <span style="width: 30px; height: 30px; border-radius: 50%; background: #C2410C; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 700; border: 2px solid #FFFFFF; margin-left: -8px">A</span>
+      <span style="width: 30px; height: 30px; border-radius: 50%; background: #9A3412; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 700; border: 2px solid #FFFFFF; margin-left: -8px">M</span>
+    </div>
+    <button style="height: 34px; padding: 0 14px; border: 0; border-radius: 8px; background: #2563EB; color: #FFFFFF; font: inherit; font-weight: 600">Invite</button>
+  </div>
+
+  <div role="toolbar" aria-label="Tools" style="position: absolute; left: 16px; top: 240px; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: #FFFFFF; border-radius: 12px; box-shadow: 0 2px 10px rgba(17,24,39,0.12)">
+    <button aria-label="Select" style="width: 44px; height: 44px; border: 0; border-radius: 8px; background: #DBEAFE; color: #1D4ED8; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M5 3l14 8-6 2-3 6z"></path></svg></button>
+    <button aria-label="Sticky note" style="width: 44px; height: 44px; border: 0; border-radius: 8px; background: transparent; color: #374151; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v10l-6 6H4z"></path><path d="M14 20v-6h6"></path></svg></button>
+    <button aria-label="Decision" style="width: 44px; height: 44px; border: 0; border-radius: 8px; background: transparent; color: #374151; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"></rect><path d="M8 12l3 3 5-6"></path></svg></button>
+    <button aria-label="Slice card" style="width: 44px; height: 44px; border: 0; border-radius: 8px; background: transparent; color: #374151; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M7 10h10M7 14h6"></path></svg></button>
+    <button aria-label="Arrow" style="width: 44px; height: 44px; border: 0; border-radius: 8px; background: transparent; color: #374151; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20C8 8 14 14 20 4M13 4h7v7"></path></svg></button>
+    <button aria-label="Frame" style="width: 44px; height: 44px; border: 0; border-radius: 8px; background: transparent; color: #374151; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M7 3v18M17 3v18M3 7h18M3 17h18"></path></svg></button>
+    <button aria-label="Comment" style="width: 44px; height: 44px; border: 0; border-radius: 8px; background: transparent; color: #374151; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg></button>
+  </div>
+
+  <div style="position: absolute; left: 700px; top: 92px; display: flex; align-items: center; gap: 2px; padding: 4px; background: #111827; border-radius: 10px; box-shadow: 0 4px 14px rgba(17,24,39,0.25)">
+    <a href="Block.dc.html" style="padding: 6px 10px; border-radius: 6px; color: #FFFFFF; text-decoration: none; font-size: 12px">Open</a>
+    <span style="padding: 6px 10px; color: #E5E7EB; font-size: 12px">Link</span>
+    <span style="padding: 6px 10px; color: #E5E7EB; font-size: 12px">Comment</span>
+    <span style="padding: 6px 10px; color: #E5E7EB; font-size: 12px">Agree…</span>
+  </div>
+
+  <div style="position: absolute; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end">
+    <div aria-hidden="true" style="width: 180px; height: 110px; background: #FFFFFF; border-radius: 10px; box-shadow: 0 2px 10px rgba(17,24,39,0.12); position: relative; overflow: hidden">
+      <span style="position: absolute; left: 14px; top: 14px; width: 100px; height: 76px; border: 1.5px dashed #9CA3AF; border-radius: 4px"></span>
+      <span style="position: absolute; left: 120px; top: 64px; width: 46px; height: 36px; border: 1.5px dashed #9CA3AF; border-radius: 4px"></span>
+      <span style="position: absolute; left: 8px; top: 8px; width: 140px; height: 90px; border: 2px solid #2563EB; border-radius: 4px; background: rgba(37,99,235,0.06)"></span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 2px; padding: 2px; background: #FFFFFF; border-radius: 10px; box-shadow: 0 2px 10px rgba(17,24,39,0.12)">
+      <button aria-label="Zoom out" style="width: 44px; height: 40px; border: 0; background: transparent; font: inherit; font-size: 18px">−</button>
+      <span style="padding: 0 4px; font-size: 12px">72%</span>
+      <button aria-label="Zoom in" style="width: 44px; height: 40px; border: 0; background: transparent; font: inherit; font-size: 18px">+</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
