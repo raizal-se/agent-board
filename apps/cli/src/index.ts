@@ -1,4 +1,4 @@
-#!/usr/bin/env -S npx tsx
+import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { startBoard } from './board';
 import { resolveIdentity } from './config';
@@ -35,9 +35,11 @@ async function watchCommand(args: string[]) {
   const identity = resolveIdentity({ name: values.name, side: values.side });
   const log = values.quiet ? () => {} : (line: string) => process.stdout.write(`  ${line}\n`);
 
-  const board = await startBoard({ folder, identity, port, poll: values.poll, log });
+  // pnpm runs scripts in the package folder; INIT_CWD is where the user typed the command.
+  const root = resolve(process.env.INIT_CWD ?? process.cwd(), folder);
+  const board = await startBoard({ folder: root, identity, port, poll: values.poll, log });
   process.stdout.write(`Board: ${board.url}\n`);
-  process.stdout.write(`Watching ${folder} as ${identity.name} (${identity.side}). Ctrl+C to stop.\n`);
+  process.stdout.write(`Watching ${root} as ${identity.name} (${identity.side}). Ctrl+C to stop.\n`);
   await board.ready;
 
   let stopping = false;

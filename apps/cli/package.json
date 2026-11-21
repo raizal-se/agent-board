@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "bin": {
-    "agent-board": "./src/index.ts"
+    "agent-board": "./bin/agent-board.mjs"
   },
   "scripts": {
-    "start": "tsx src/index.ts",
+    "start": "node bin/agent-board.mjs",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },
