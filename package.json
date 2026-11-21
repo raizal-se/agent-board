@@ -1,0 +1,20 @@
+{
+  "name": "agent-board",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.13.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "dev": "pnpm --filter @agent-board/web dev"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@agent-board/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "agent-board": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agent-board/model": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15"
+  }
+}
