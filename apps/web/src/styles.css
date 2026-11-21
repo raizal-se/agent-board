@@ -45,7 +45,7 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 .html-path { padding: 6px 8px; color: var(--muted); font-size: 11px; flex: 1; }
 
 .react-flow__edge.file-edge .react-flow__edge-path { stroke: #7a7870; }
-.react-flow__edge-text { font-size: 11px; }
+.edge-label { position: absolute; pointer-events: none; font-size: 12px; line-height: 1.2; padding: 2px 6px; background: #fff; border: 1px solid var(--line); border-radius: 10px; color: #4a4843; white-space: nowrap; z-index: 5; }
 
 .hidden-list { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; max-width: 360px; }
 .hidden-list ul { list-style: none; margin: 6px 0 0; padding: 0; max-height: 240px; overflow: auto; }

@@ -1,15 +1,9 @@
-import { BLOCK_W } from '@agent-board/model';
 import type { NodeProps } from '@xyflow/react';
 import { memo, useEffect, useRef, useState } from 'react';
 import type { BlockNode } from '../board/derive';
 import { BlockChrome } from './BlockChrome';
+import { FIT_SCRIPT, fitToContent, PAGE_H, PAGE_W, THUMB_H, THUMB_W, WHOLE_PAGE, type ThumbFit } from './thumbFit';
 
-/** The page renders at this size, then scales down into the thumbnail. */
-const PAGE_W = 1280;
-const PAGE_H = 800;
-const THUMB_W = BLOCK_W - 2;
-const SCALE = THUMB_W / PAGE_W;
-const THUMB_H = Math.round(PAGE_H * SCALE);
 
 /**
  * The sandbox for agent HTML: scripts run, but the page gets an opaque origin, so it cannot reach
@@ -20,10 +14,24 @@ export const HTML_SANDBOX = 'allow-scripts';
 /**
  * HTML thumbnail: a sandboxed srcdoc iframe, scaled down, that takes no clicks (a drag over it
  * moves the block). It loads the first time it comes on screen, and stays loaded after that.
+ * The page reports the box of its content and the thumbnail zooms to it (see thumbFit.ts).
  */
 export const HtmlBlock = memo(function HtmlBlock({ data }: NodeProps<BlockNode>) {
   const boxRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLIFrameElement>(null);
   const [visible, setVisible] = useState(false);
+  const [fit, setFit] = useState<ThumbFit>(WHOLE_PAGE);
+
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      // Only this block's own frame; its data is checked by fitToContent.
+      if (!frameRef.current || e.source !== frameRef.current.contentWindow) return;
+      const box = (e.data as { agentBoardFit?: unknown } | null)?.agentBoardFit;
+      if (box !== undefined) setFit(fitToContent(box));
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
 
   useEffect(() => {
     const el = boxRef.current;
@@ -37,14 +45,15 @@ export const HtmlBlock = memo(function HtmlBlock({ data }: NodeProps<BlockNode>)
 
   return (
     <BlockChrome item={data.item} missing={data.missing}>
-      <div ref={boxRef} className="html-thumb" style={{ width: THUMB_W, height: THUMB_H }} data-loaded={visible ? 'yes' : 'no'}>
+      <div ref={boxRef} className="html-thumb" style={{ width: THUMB_W, height: THUMB_H }} data-loaded={visible ? 'yes' : 'no'} data-scale={fit.scale.toFixed(3)}>
         {visible ? (
           <iframe
+            ref={frameRef}
             title={data.item.path}
             sandbox={HTML_SANDBOX}
-            srcDoc={data.item.text}
+            srcDoc={data.item.text + FIT_SCRIPT}
             tabIndex={-1}
-            style={{ width: PAGE_W, height: PAGE_H, transform: `scale(${SCALE})` }}
+            style={{ width: PAGE_W, height: PAGE_H, transform: `scale(${fit.scale}) translate(${-fit.x}px, ${-fit.y}px)` }}
           />
         ) : (
           <div className="html-placeholder">loads when on screen</div>

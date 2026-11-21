@@ -6,8 +6,10 @@ import {
   Panel,
   ReactFlow,
   ReactFlowProvider,
+  useNodesInitialized,
   useReactFlow,
   type NodeChangeset,
+  type EdgeTypes,
   type NodeTypes,
   type OnNodeDrag,
 } from '@xyflow/react';
@@ -20,9 +22,11 @@ import { MarkdownBlock } from './blocks/MarkdownBlock';
 import { BoardActionsContext, type BoardActions } from './board/actions';
 import type { BoardConnection } from './board/connection';
 import { derive, type BoardNode } from './board/derive';
+import { FloatingEdge } from './board/FloatingEdge';
 import { useBoardState } from './board/useBoard';
 
 const nodeTypes: NodeTypes = { frame: FrameNode, markdown: MarkdownBlock, html: HtmlBlock };
+const edgeTypes: EdgeTypes = { floating: FloatingEdge };
 
 const STATUS_TEXT: Record<ConnectionStatus, string> = {
   connecting: 'connecting…',
@@ -57,11 +61,13 @@ function Board({ conn }: { conn: BoardConnection }) {
     });
   }, [derived.nodes]);
 
+  // Fit once, after React Flow has measured the nodes, so the fit uses their real size.
+  const measured = useNodesInitialized();
   useEffect(() => {
-    if (fitted.current || nodes.length === 0) return;
+    if (fitted.current || !measured || nodes.length === 0) return;
     fitted.current = true;
-    requestAnimationFrame(() => void rf.fitView({ padding: 0.08, maxZoom: 1 }));
-  }, [nodes.length, rf]);
+    void rf.fitView({ padding: 0.03, maxZoom: 1 });
+  }, [measured, nodes.length, rf]);
 
   const onNodesChange = useCallback((changes: NodeChangeset<BoardNode>) => setNodes((ns) => changes.applyTo(ns)), []);
 
@@ -91,6 +97,9 @@ function Board({ conn }: { conn: BoardConnection }) {
         nodes={nodes}
         edges={derived.edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        // Layers as derive() sets them: frames 0, edges 1, blocks 1 (later in the page, so on top).
+        zIndexMode="manual"
         onNodesChange={onNodesChange}
         onNodeDragStop={onNodeDragStop}
         nodesConnectable={false}

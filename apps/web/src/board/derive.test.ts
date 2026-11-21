@@ -42,7 +42,7 @@ describe('derive', () => {
     const edges = [edge('x', 'a/y.md', 'y', 'calls'), edge('x', 'later.md', null), edge('x', 'a/z.md', 'z')];
     const d = derive({ frames, items, edges, layout: new Map() });
     expect(d.edges).toHaveLength(1);
-    expect(d.edges[0]).toMatchObject({ source: 'x', target: 'y', label: 'calls · x.md', className: 'file-edge' });
+    expect(d.edges[0]).toMatchObject({ source: 'x', target: 'y', type: 'floating', label: 'calls', className: 'file-edge' });
     const x = d.nodes.find((n) => n.id === 'x')!;
     expect(x.data).toMatchObject({ missing: ['a/z.md', 'later.md'] });
   });

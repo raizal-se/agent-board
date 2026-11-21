@@ -1,10 +1,7 @@
 import {
   BLOCK_H,
   BLOCK_W,
-  FRAME_MIN_H,
-  FRAME_MIN_W,
-  FRAME_PAD,
-  fileName,
+  frameSize,
   type FileEdge,
   type FileItem,
   type Frame,
@@ -50,16 +47,14 @@ export function derive(state: BoardState): Derived {
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((frame) => {
       const l = state.layout.get(frame.id) ?? ORIGIN;
-      let w = Math.max(l.w ?? FRAME_MIN_W, FRAME_MIN_W);
-      let h = Math.max(l.h ?? FRAME_MIN_H, FRAME_MIN_H);
       let count = 0;
-      for (const item of visible) {
+      const cells: Layout[] = [];
+      for (const item of state.items) {
         if (item.frame !== frame.id) continue;
-        count++;
-        const p = state.layout.get(item.id) ?? ORIGIN;
-        w = Math.max(w, p.x + BLOCK_W + FRAME_PAD);
-        h = Math.max(h, p.y + BLOCK_H + FRAME_PAD);
+        if (!item.gone) count++;
+        cells.push(state.layout.get(item.id) ?? ORIGIN);
       }
+      const { w, h } = frameSize(cells);
       return {
         id: frame.id,
         type: 'frame',
@@ -101,18 +96,20 @@ export function derive(state: BoardState): Derived {
     if (!e.to || !drawn.has(e.from) || !drawn.has(e.to)) continue;
     const from = byId.get(e.from)!;
     const to = byId.get(e.to)!;
-    const name = fileName(from.path);
     edges.push({
       id: e.id,
+      type: 'floating',
       source: e.from,
       target: e.to,
-      label: e.label ? `${e.label} · ${name}` : name,
+      label: e.label || undefined,
       className: 'file-edge',
       ariaLabel: `link from ${from.path} to ${to.path}`,
       style: { strokeDasharray: '6 5', strokeWidth: 1.5 },
       markerEnd: { type: MarkerType.ArrowClosed },
       selectable: false,
-      zIndex: 2,
+      // Above frames (0). Blocks (1) come later in the page, so a block still covers an edge that
+      // crosses it. App sets zIndexMode="manual" so React Flow keeps these numbers as they are.
+      zIndex: 1,
     });
   }
 

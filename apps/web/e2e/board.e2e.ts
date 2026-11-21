@@ -18,7 +18,7 @@ flowchart LR
 
 const PAGE = `<!doctype html>
 <meta name="board:link" content="checkout/flow.md | shows">
-<body style="font: 48px sans-serif">
+<body style="font: 24px sans-serif">
   <h1 id="title">Card form</h1>
   <button id="pay" onclick="document.getElementById('title').textContent = 'clicked'">Pay</button>
   <script>document.body.dataset.ran = 'yes'; document.getElementById('title').textContent += ' (script ran)';</script>
@@ -97,6 +97,77 @@ test('a link in a file draws an edge; removing it deletes the edge', async ({ pa
 
   cli.write('readme.md', '# Payments board\n');
   await expect(page.locator('[aria-label="link from readme.md to checkout/next.md"]')).toHaveCount(0);
+});
+
+test('edges run border to border above the frames, each label at its own edge', async ({ page }) => {
+  await open(page);
+  const pairs: [string, string, string][] = [
+    ['checkout/flow.md', 'checkout/api.md', 'calls'],
+    ['ui/card-form.html', 'checkout/flow.md', 'shows'],
+  ];
+  const labels = page.getByTestId('edge-label');
+  await expect(labels).toHaveCount(2);
+  expect((await labels.allInnerTexts()).sort()).toEqual(['calls', 'shows']);
+
+  // Label boxes do not overlap.
+  const [a, b] = await labels.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON() as DOMRect));
+  const overlap = a!.left < b!.right && b!.left < a!.right && a!.top < b!.bottom && b!.top < a!.bottom;
+  expect(overlap, 'edge labels overlap').toBe(false);
+
+  for (const [from, to, label] of pairs) {
+    const geo = await page.evaluate(
+      ({ from, to, label }) => {
+        const g = document.querySelector(`[aria-label="link from ${from} to ${to}"]`)!;
+        const path = g.querySelector<SVGPathElement>('.react-flow__edge-path')!;
+        const m = path.getScreenCTM()!;
+        const len = path.getTotalLength();
+        const at = (d: number) => {
+          const p = new DOMPoint(path.getPointAtLength(d).x, path.getPointAtLength(d).y).matrixTransform(m);
+          return { x: p.x, y: p.y };
+        };
+        const rect = (p: string) => document.querySelector(`[data-testid="block"][data-path="${p}"]`)!.getBoundingClientRect().toJSON() as DOMRect;
+        const lab = [...document.querySelectorAll('[data-testid="edge-label"]')].find((e) => e.textContent === label)!;
+        const lr = lab.getBoundingClientRect();
+        const mid = at(len / 2);
+        // What is on top at the middle of the line: make the thin dashed stroke hittable first.
+        path.style.pointerEvents = 'stroke';
+        path.style.strokeWidth = '12';
+        const stack = document.elementsFromPoint(mid.x, mid.y);
+        const edgeAt = stack.indexOf(path);
+        const frameAt = stack.findIndex((e) => e.closest('.react-flow__node-frame'));
+        path.style.pointerEvents = '';
+        path.style.strokeWidth = '';
+        return {
+          start: at(0),
+          end: at(len),
+          mid,
+          label: { x: lr.left + lr.width / 2, y: lr.top + lr.height / 2 },
+          from: rect(from),
+          to: rect(to),
+          edgeAboveFrame: edgeAt !== -1 && (frameAt === -1 || edgeAt < frameAt),
+        };
+      },
+      { from, to, label },
+    );
+    const onBorder = (p: { x: number; y: number }, r: DOMRect) => {
+      const tol = 3;
+      const inside = p.x >= r.left - tol && p.x <= r.right + tol && p.y >= r.top - tol && p.y <= r.bottom + tol;
+      const deep = p.x > r.left + tol && p.x < r.right - tol && p.y > r.top + tol && p.y < r.bottom - tol;
+      return inside && !deep;
+    };
+    expect(onBorder(geo.start, geo.from), `${from} -> ${to} starts on the border of ${from}`).toBe(true);
+    expect(onBorder(geo.end, geo.to), `${from} -> ${to} ends on the border of ${to}`).toBe(true);
+    expect(Math.hypot(geo.label.x - geo.mid.x, geo.label.y - geo.mid.y), `label "${label}" at its edge's midpoint`).toBeLessThan(4);
+    expect(geo.edgeAboveFrame, `${from} -> ${to} is drawn above the frame`).toBe(true);
+  }
+});
+
+test('an HTML thumbnail zooms to the page content', async ({ page }) => {
+  await open(page);
+  const thumb = block(page, 'ui/card-form.html').locator('.html-thumb');
+  await expect(thumb).toHaveAttribute('data-loaded', 'yes');
+  // The fixture's content is about half the 1280 px page wide, so it zooms well past 338/1280.
+  await expect.poll(async () => Number(await thumb.getAttribute('data-scale')), { timeout: 5000 }).toBeGreaterThan(0.4);
 });
 
 test('an HTML thumbnail loads sandboxed, takes no clicks, and opens full size', async ({ page }) => {
