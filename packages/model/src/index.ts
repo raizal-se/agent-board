@@ -25,3 +25,7 @@ export function createBoardDoc(): Y.Doc {
 export function boardMap<T = unknown>(doc: Y.Doc, name: BoardMapName): Y.Map<T> {
   return doc.getMap<T>(name);
 }
+
+export * from './items';
+export * from './layout';
+export * from './edges';
