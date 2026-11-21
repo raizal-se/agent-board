@@ -18,9 +18,11 @@
     "chokidar": "^6.0.0",
     "node-datachannel": "^0.33.6",
     "trystero": "^0.27.0",
-    "yjs": "^13.6.33"
+    "yjs": "^13.6.33",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "@types/ws": "^8.5.12"
   }
 }
