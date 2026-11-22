@@ -133,7 +133,8 @@ test('a file link runs border to border above the frames, dotted and locked, its
     const start = pts[0]!;
     const end = pts[pts.length - 1]!;
     const onBorder = (p: { x: number; y: number }, r: SceneEl) => {
-      const tol = 3;
+      // A bound arrow stops ARROW_GAP (4 px) off its block's border, as Excalidraw draws them.
+      const tol = 6;
       const inside = p.x >= r.x - tol && p.x <= r.x + r.width + tol && p.y >= r.y - tol && p.y <= r.y + r.height + tol;
       const deep = p.x > r.x + tol && p.x < r.x + r.width - tol && p.y > r.y + tol && p.y < r.y + r.height - tol;
       return inside && !deep;

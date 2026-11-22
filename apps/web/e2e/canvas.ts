@@ -108,11 +108,13 @@ export async function clickEl(page: Page, id: string, add = false): Promise<void
   if (add) await page.keyboard.up('Shift');
 }
 
-/** The board ids of file blocks, by path. */
+/** The board id of a file block, by path, once its block is on the canvas. */
 export async function idOf(page: Page, path: string): Promise<string> {
-  const el = byPath(await scene(page), path);
-  if (!el) throw new Error(`no block for ${path}`);
-  return el.id;
+  let id: string | undefined;
+  await expect
+    .poll(async () => (id = byPath(await scene(page), path)?.id), { message: `a block for ${path} on the canvas` })
+    .toBeTruthy();
+  return id!;
 }
 
 /** Select file blocks in this order, by clicking them on the canvas. */
@@ -123,14 +125,26 @@ export async function selectPaths(page: Page, ...paths: string[]): Promise<void>
 
 export const block = (page: Page, path: string) => page.locator(`[data-testid="block"][data-path="${path}"]`);
 
+/**
+ * Open the board and wait until the doc is on the canvas: `first` has its element in the scene
+ * and its block's DOM shows, and every file the CLI exported has its block in the scene.
+ */
 export async function openBoard(page: Page, cli: RunningCli, first: string): Promise<void> {
   await page.goto(cli.url);
   await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'online');
+  await idOf(page, first);
   await expect(block(page, first)).toBeVisible();
+  await expect
+    .poll(async () => {
+      const files = (exported(cli)?.items ?? []).filter((i) => i.kind === 'file' && !i.gone).map((i) => i.path!);
+      const els = await scene(page);
+      return files.filter((p) => !byPath(els, p));
+    }, { message: 'every exported file has its block on the canvas' })
+    .toEqual([]);
 }
 
 export interface Exported {
-  items: { id: string; kind: string; path: string | null; frame: string | null; content: string; author?: string; state: string; zone: string; snapshot: { content: string } | null; changed_after_agreement?: boolean }[];
+  items: { id: string; kind: string; path: string | null; gone?: boolean; frame: string | null; content: string; author?: string; state: string; zone: string; snapshot: { content: string } | null; changed_after_agreement?: boolean }[];
   comments: { target: string; resolved: boolean; comments: { author: string; text: string }[] }[];
   edges: { source: string; label: string }[];
   decisions: { text: string; covers: string[] }[];

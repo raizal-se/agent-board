@@ -230,6 +230,8 @@ test('notes, comments, links, decisions and the changed mark survive a reload an
   await page.getByRole('button', { name: '+ note' }).click();
   await expect.poll(async () => (await notes(page)).length).toBe(1);
   const note = (await notes(page))[0]!.id;
+  // Selected (and so scrolled into view): the bar names it.
+  await expect(page.getByTestId('selection-bar')).toContainText('note by e2e');
   await typeInNote(page, note, 'keep me');
   await block(page, 'checkout/flow.md').getByTestId('comment-pin').click();
   await page.getByTestId('thread').getByRole('textbox', { name: 'New comment' }).fill('still here?');

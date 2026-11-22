@@ -91,6 +91,8 @@ async function open(page: Page, first = 'checkout/flow.md') {
   await page.goto(cli.url);
   await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'online');
   await expect(block(page, first)).toBeVisible();
+  // The block's DOM can show before the scene settles: wait for its element in the scene too.
+  await expect.poll(async () => !!byPath(await scene(page), first)).toBe(true);
 }
 
 test('frames from folders, live markdown and mermaid, an HTML thumbnail, a file link as a bound arrow', async ({ page }) => {
