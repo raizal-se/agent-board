@@ -1,10 +1,11 @@
 import { CaptureUpdateAction, Excalidraw, MainMenu } from '@excalidraw/excalidraw';
 import type { ExcalidrawElement, NonDeleted, ExcalidrawEmbeddableElement } from '@excalidraw/excalidraw/element/types';
-import type { AppState, ExcalidrawImperativeAPI, ExcalidrawInitialDataState } from '@excalidraw/excalidraw/types';
+import type { AppState, ExcalidrawImperativeAPI, ExcalidrawInitialDataState, NormalizedZoomValue } from '@excalidraw/excalidraw/types';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import type * as Y from 'yjs';
 import { EMBED_SCHEME, FONT_HELVETICA, kindOf, roughMeasure, type El, type Measure } from './elements';
 import { BlockEmbed } from './embeds';
+import { contentBounds, fitTop } from './fit';
 import type { GestureState } from './scene';
 import { BoardSync } from './sync';
 
@@ -68,6 +69,21 @@ const renderEmbeddable = (el: NonDeleted<ExcalidrawEmbeddableElement>) => {
 
 const BOARD_KINDS = new Set(['file', 'decision', 'sticky']);
 
+/** Room at the top of the canvas for our header (and Excalidraw's toolbar above it on a wide screen). */
+const TOP_INSET = 112;
+
+/** Shows the whole board, from the top: on a phone it fills the width instead of sitting mid-screen. */
+function fitBoard(api: ExcalidrawImperativeAPI): void {
+  const b = contentBounds(api.getSceneElements());
+  if (!b) return;
+  const s = api.getAppState();
+  const f = fitTop(b, { width: s.width, height: s.height, top: TOP_INSET, pad: 12 });
+  api.updateScene({
+    appState: { scrollX: f.scrollX, scrollY: f.scrollY, zoom: { value: f.zoom as NormalizedZoomValue } },
+    captureUpdate: CaptureUpdateAction.NEVER,
+  });
+}
+
 /**
  * The board on an Excalidraw canvas. The doc stays the source of truth (see sync.ts); this only
  * wires Excalidraw's API to the bridge and reports the selection.
@@ -113,7 +129,7 @@ export const BoardCanvas = memo(function BoardCanvas({
         if (!live) fitted.current = false;
         else if (!fitted.current) {
           fitted.current = true;
-          api.scrollToContent(undefined, { fitToViewport: true, viewportZoomFactor: 0.9 });
+          fitBoard(api);
           onReady?.();
         }
       }),
