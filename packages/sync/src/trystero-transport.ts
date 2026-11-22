@@ -25,6 +25,10 @@ export async function trysteroTransport(room: Room): Promise<TrysteroTransport> 
     selfId: self.peerId,
     peers,
     block: (id) => void blocked.add(id),
+    binding(peerId) {
+      const pc = room.getPeers()[peerId]?.connection as RTCPeerConnection | undefined;
+      return sdpBinding(pc?.localDescription?.sdp, pc?.remoteDescription?.sdp);
+    },
     onPeerJoin(h) {
       return room.onPeerJoin(({ peerId }) => {
         if (!blocked.has(peerId)) h(peerId);
@@ -59,6 +63,14 @@ export async function trysteroTransport(room: Room): Promise<TrysteroTransport> 
     },
     leave: () => room.leave(),
   };
+}
+
+/** The sorted `a=fingerprint` lines of both descriptions, lower case. */
+export function sdpBinding(local: string | undefined, remote: string | undefined): string {
+  const prints = (sdp: string | undefined) =>
+    [...(sdp ?? '').matchAll(/^a=fingerprint:(\S+) (\S+)\s*$/gim)].map((m) => `${m[1]!.toLowerCase()} ${m[2]!.toLowerCase()}`);
+  const all = [...new Set([...prints(local), ...prints(remote)])].sort();
+  return all.join('|');
 }
 
 function toBytes(d: unknown): Uint8Array {

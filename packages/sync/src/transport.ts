@@ -19,4 +19,9 @@ export interface Transport {
   /** A named message channel. Names must be short (at most 255 bytes). */
   channel(name: string): Channel;
   leave(): Promise<void>;
+  /**
+   * What ties a proof to this one link: the DTLS fingerprints of both ends of the WebRTC link,
+   * sorted, so both sides compute the same text. '' when the transport has no such link (tests).
+   */
+  binding?(peerId: string): string;
 }

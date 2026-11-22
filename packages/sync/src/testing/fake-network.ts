@@ -14,8 +14,13 @@ export class FakeNetwork {
   block(a: string, b: string) {
     this.blockedPairs.add(key(a, b));
   }
+  private rules: ((a: string, b: string) => boolean)[] = [];
+  /** Block every pair the rule matches (both orders are tried). */
+  blockWhere(rule: (a: string, b: string) => boolean) {
+    this.rules.push(rule);
+  }
   canLink(a: string, b: string) {
-    return a !== b && !this.blockedPairs.has(key(a, b));
+    return a !== b && !this.blockedPairs.has(key(a, b)) && !this.rules.some((r) => r(a, b) || r(b, a));
   }
   join(id: string): FakeTransport {
     const t = new FakeTransport(this, id);
