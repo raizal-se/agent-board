@@ -6,6 +6,7 @@ import type * as Y from 'yjs';
 import { selectedIds, undoActivation, type ActivationState } from './activation';
 import { EMBED_SCHEME, FONT_HELVETICA, kindOf, roughMeasure, type El, type Measure } from './elements';
 import { BlockEmbed } from './embeds';
+import { barRoom, isNarrow } from './bars';
 import { contentBounds, fitTop, inView } from './fit';
 import type { GestureState } from './scene';
 import { BoardSync } from './sync';
@@ -70,19 +71,14 @@ const renderEmbeddable = (el: NonDeleted<ExcalidrawEmbeddableElement>) => {
 
 const BOARD_KINDS = new Set(['file', 'decision', 'sticky']);
 
-/**
- * Room at the top of the canvas for our bars: the header and, under it, the selection bar
- * (styles.css: the overlay starts at 64 px; header and bar end near 145 px), so a selected block's
- * own buttons are not under the bar.
- */
-const TOP_INSET = 152;
 
 /** Shows the whole board, from the top: on a phone it fills the width instead of sitting mid-screen. */
 function fitBoard(api: ExcalidrawImperativeAPI): void {
   const b = contentBounds(api.getSceneElements());
   if (!b) return;
   const s = api.getAppState();
-  const f = fitTop(b, { width: s.width, height: s.height, top: TOP_INSET, pad: 12 });
+  const room = barRoom(isNarrow());
+  const f = fitTop(b, { width: s.width, height: s.height, top: room.top, bottom: room.bottom, pad: 12 });
   api.updateScene({
     appState: { scrollX: f.scrollX, scrollY: f.scrollY, zoom: { value: f.zoom as NormalizedZoomValue } },
     captureUpdate: CaptureUpdateAction.NEVER,
@@ -168,7 +164,8 @@ export const BoardCanvas = memo(function BoardCanvas({
           // Bring them into view if they are not (a new note can land past the edge of the view).
           const b = contentBounds(els);
           const s = api.getAppState();
-          if (b && !inView(b, { scrollX: s.scrollX, scrollY: s.scrollY, zoom: s.zoom.value, width: s.width, height: s.height, top: TOP_INSET })) {
+          const room = barRoom(isNarrow());
+          if (b && !inView(b, { scrollX: s.scrollX, scrollY: s.scrollY, zoom: s.zoom.value, width: s.width, height: s.height, ...room })) {
             api.scrollToContent(els, { animate: false });
           }
         };

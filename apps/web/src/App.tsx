@@ -19,6 +19,7 @@ import type { BoardConnection } from './board/connection';
 import { nameOf, views } from './board/derive';
 import { noteSpot } from './board/place';
 import { useBoardState } from './board/useBoard';
+import { useNarrow } from './canvas/bars';
 import { BoardCanvas, type Selection, type Viewport } from './canvas/BoardCanvas';
 import { ViewsContext } from './canvas/embeds';
 
@@ -101,6 +102,63 @@ export function App({ conn }: { conn: BoardConnection }) {
   const oneBlock = one?.kind === 'file' ? v.blocks.get(one.id) : undefined;
   const onePin = one ? (v.blocks.get(one.id) ?? v.decisions.get(one.id) ?? v.stickies.get(one.id))?.pin : undefined;
 
+  // The selection bar: at the top on a wide screen, at the bottom on a narrow one (see bars.ts).
+  const narrow = useNarrow();
+  const selectionBar = (pickedItems.length > 0 || selectedEdge) && (
+    <div className="selection-bar" data-testid="selection-bar">
+      {selectedEdge ? (
+        <>
+          <span className="selection-count">Link by {selectedEdge.author}</span>
+          <button type="button" className="btn" onClick={() => setAsk({ kind: 'label', edge: selectedEdge.id, initial: selectedEdge.label })}>
+            Edit label
+          </button>
+          <button
+            type="button"
+            className="btn btn-danger"
+            onClick={() => {
+              deleteHumanEdge(doc, selectedEdge.id);
+              clearSelection();
+            }}
+          >
+            Delete link
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="selection-count">{one ? nameOf(one) : `${pickedItems.length} selected`}</span>
+          {one?.kind === 'file' && (
+            <button type="button" className="btn" onClick={() => setOpenId(one.id)}>
+              Open
+            </button>
+          )}
+          {one && (
+            <button type="button" className="btn" onClick={() => setThreadOn(one.id)}>
+              Comments{onePin?.count ? ` (${onePin.count})` : ''}
+            </button>
+          )}
+          {oneBlock?.agreement && (
+            <button type="button" className="btn" onClick={() => setCompareId(oneBlock.item.id)}>
+              Compare
+            </button>
+          )}
+          {canLink && (
+            <button type="button" className="btn" onClick={() => setAsk({ kind: 'link', from: pickedItems[0]!.id, to: pickedItems[1]!.id })}>
+              Link
+            </button>
+          )}
+          {canAgree && (
+            <button type="button" className="btn btn-agree" onClick={() => setAsk({ kind: 'agree', covers: files.map((f) => f.id) })}>
+              Agree
+            </button>
+          )}
+        </>
+      )}
+      <button type="button" className="btn" onClick={clearSelection}>
+        Clear
+      </button>
+    </div>
+  );
+
   return (
     <BoardActionsContext.Provider value={actions}>
       <ViewsContext.Provider value={v}>
@@ -116,66 +174,14 @@ export function App({ conn }: { conn: BoardConnection }) {
                 + note
               </button>
             </div>
-            {(pickedItems.length > 0 || selectedEdge) && (
-              <div className="selection-bar" data-testid="selection-bar">
-                {selectedEdge ? (
-                  <>
-                    <span className="selection-count">Link by {selectedEdge.author}</span>
-                    <button type="button" className="btn" onClick={() => setAsk({ kind: 'label', edge: selectedEdge.id, initial: selectedEdge.label })}>
-                      Edit label
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-danger"
-                      onClick={() => {
-                        deleteHumanEdge(doc, selectedEdge.id);
-                        clearSelection();
-                      }}
-                    >
-                      Delete link
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <span className="selection-count">{one ? nameOf(one) : `${pickedItems.length} selected`}</span>
-                    {one?.kind === 'file' && (
-                      <button type="button" className="btn" onClick={() => setOpenId(one.id)}>
-                        Open
-                      </button>
-                    )}
-                    {one && (
-                      <button type="button" className="btn" onClick={() => setThreadOn(one.id)}>
-                        Comments{onePin?.count ? ` (${onePin.count})` : ''}
-                      </button>
-                    )}
-                    {oneBlock?.agreement && (
-                      <button type="button" className="btn" onClick={() => setCompareId(oneBlock.item.id)}>
-                        Compare
-                      </button>
-                    )}
-                    {canLink && (
-                      <button type="button" className="btn" onClick={() => setAsk({ kind: 'link', from: pickedItems[0]!.id, to: pickedItems[1]!.id })}>
-                        Link
-                      </button>
-                    )}
-                    {canAgree && (
-                      <button type="button" className="btn btn-agree" onClick={() => setAsk({ kind: 'agree', covers: files.map((f) => f.id) })}>
-                        Agree
-                      </button>
-                    )}
-                  </>
-                )}
-                <button type="button" className="btn" onClick={clearSelection}>
-                  Clear
-                </button>
-              </div>
-            )}
+            {!narrow && selectionBar}
           </div>
           <div className="board-overlay board-overlay-bottom">
             <HiddenList items={v.hidden} onOpen={actions.open} />
             {status === 'online' && state.items.length === 0 && state.stickies.length === 0 && (
               <div className="empty">No files yet. Add .md or .html files to the watched folder, or add a note.</div>
             )}
+            {narrow && selectionBar}
           </div>
         </div>
         {openItem && <FullView item={openItem} onClose={close} />}

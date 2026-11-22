@@ -42,6 +42,15 @@ describe('the first view', () => {
     expect(inView({ minX: 1900, minY: 250, maxX: 2100, maxY: 500 }, v)).toBe(false);
   });
 
+  it('keeps room free at the bottom for a selection bar there', () => {
+    const b = { minX: 0, minY: 0, maxX: 500, maxY: 2000 };
+    const f = fitTop(b, { width: 1400, height: 900, top: 100, pad: 20, bottom: 120 });
+    expect(screen(b, f).bottom).toBeCloseTo(780);
+    const v = { scrollX: 0, scrollY: 0, zoom: 1, width: 1000, height: 800, top: 100, bottom: 120 };
+    expect(inView({ minX: 10, minY: 200, maxX: 400, maxY: 680 }, v)).toBe(true);
+    expect(inView({ minX: 10, minY: 200, maxX: 400, maxY: 700 }, v)).toBe(false);
+  });
+
   it('bounds cover the live elements only', () => {
     expect(contentBounds([])).toBeNull();
     expect(
