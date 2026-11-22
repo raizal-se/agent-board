@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
-import { fileTypeOf, parseFileLinks } from '@agent-board/formats';
+import { fileTypeOf, parseFileArea, parseFileLinks } from '@agent-board/formats';
 import {
+  estimateCardH,
   fileItemOf,
   frameId,
   frameNameForPath,
@@ -10,7 +11,10 @@ import {
   newItemId,
   nextFrameSpot,
   nextItemSpot,
+  overrideHolds,
+  resolveArea,
   resolveEdgesTo,
+  sidesMap,
   syncFileEdges,
   isFileItem,
   type FileItem,
@@ -23,7 +27,7 @@ export type UpsertResult = 'new' | 'changed' | 'same' | 'renamed' | 'back' | 'sk
 export interface BoardWriterOptions {
   /** Owner name stored on each item. */
   owner: string;
-  /** The owner's side: a new block starts in that side's zone (design 4.1). Default product. */
+  /** The owner's side: a block whose file says no `area` goes in that side's area. Default product. */
   side?: Side;
   /** Frame name for files at the root of the watched folder. */
   rootName: string;
@@ -52,7 +56,7 @@ export class BoardWriter {
   private readonly pendingGone = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly windowMs: number;
   private readonly now: () => number;
-  private readonly zone: Side;
+  private readonly side: Side;
 
   constructor(
     private readonly doc: Y.Doc,
@@ -60,7 +64,7 @@ export class BoardWriter {
   ) {
     this.windowMs = opts.renameWindowMs ?? 1000;
     this.now = opts.now ?? Date.now;
-    this.zone = opts.side ?? 'product';
+    this.side = opts.side ?? 'product';
     for (const item of itemsMap(doc).values()) {
       if (isFileItem(item) && item.owner === opts.owner) this.index.set(item.path, item.id);
     }
@@ -75,6 +79,7 @@ export class BoardWriter {
     const type = fileTypeOf(path);
     if (!type) return 'skipped';
     const hash = contentHash(text);
+    const area = parseFileArea(path, text);
     const items = itemsMap(this.doc);
     let result: UpsertResult;
 
@@ -94,7 +99,9 @@ export class BoardWriter {
           result = 'same';
         } else {
           result = prev.gone ? 'back' : 'changed';
-          items.set(known, { ...prev, text, hash, type, gone: false, updatedAt: this.now() });
+          const next: FileItem = { ...prev, text, hash, type, area, gone: false, updatedAt: this.now() };
+          this.followArea(prev, next);
+          items.set(known, next);
         }
         this.syncEdges(known, path, text);
         return;
@@ -106,8 +113,15 @@ export class BoardWriter {
         this.index.delete(renamedFrom.path);
         this.index.set(path, renamedFrom.id);
         const frame = this.ensureFrame(path);
-        if (frame !== renamedFrom.frame) layoutMap(this.doc).set(renamedFrom.id, nextItemSpot(this.doc, frame, { zone: this.zone, exceptId: renamedFrom.id }));
-        items.set(renamedFrom.id, { ...renamedFrom, path, frame, type, text, hash, gone: false, updatedAt: this.now() });
+        const next: FileItem = { ...renamedFrom, path, frame, type, text, hash, area, gone: false, updatedAt: this.now() };
+        if (frame !== renamedFrom.frame) {
+          // Another frame: a person's switch was about the old place; the file decides here.
+          sidesMap(this.doc).delete(renamedFrom.id);
+          this.placeIn(next);
+        } else {
+          this.followArea(renamedFrom, next);
+        }
+        items.set(renamedFrom.id, next);
         resolveEdgesTo(this.doc, path, renamedFrom.id);
         this.syncEdges(renamedFrom.id, path, text);
         result = 'renamed';
@@ -116,8 +130,9 @@ export class BoardWriter {
 
       const id = newItemId();
       const frame = this.ensureFrame(path);
-      layoutMap(this.doc).set(id, nextItemSpot(this.doc, frame, { zone: this.zone }));
-      items.set(id, { id, kind: 'file', path, frame, type, text, hash, owner: this.opts.owner, gone: false, updatedAt: this.now() });
+      const item: FileItem = { id, kind: 'file', path, frame, type, text, hash, area, owner: this.opts.owner, gone: false, updatedAt: this.now() };
+      this.placeIn(item);
+      items.set(id, item);
       this.index.set(path, id);
       resolveEdgesTo(this.doc, path, id);
       this.syncEdges(id, path, text);
@@ -167,6 +182,31 @@ export class BoardWriter {
     itemsMap(this.doc).delete(id);
     layoutMap(this.doc).delete(id);
     this.index.delete(path);
+  }
+
+  /**
+   * A block's place, once: a free spot in its area. After that only a person moves it, unless its
+   * area changes.
+   */
+  private placeIn(item: FileItem) {
+    const where = resolveArea(item, this.side, sidesMap(this.doc).get(item.id));
+    const l = layoutMap(this.doc).get(item.id);
+    const spot = nextItemSpot(this.doc, item.frame, { area: where.area, exceptId: item.id, w: l?.w, h: l?.h ?? estimateCardH(item.type, item.text) });
+    layoutMap(this.doc).set(item.id, l ? { ...l, ...spot } : spot);
+  }
+
+  /**
+   * The last statement wins: a save whose `area` differs from before clears a person's switch, and
+   * the block moves to a free spot in its new area if that changed. The same `area` keeps the switch.
+   */
+  private followArea(prev: FileItem, next: FileItem) {
+    if ((prev.area ?? null) === (next.area ?? null)) return;
+    const sides = sidesMap(this.doc);
+    const ov = sides.get(prev.id);
+    const before = resolveArea(prev, this.side, ov).area;
+    if (ov && !overrideHolds(next, ov)) sides.delete(prev.id);
+    const after = resolveArea(next, this.side, sides.get(prev.id)).area;
+    if (before !== after) this.placeIn(next);
   }
 
   private markGone(id: string): boolean {

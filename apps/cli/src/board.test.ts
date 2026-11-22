@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import {
   addComment,
   addSticky,
-  agree,
+  agreeItem,
   agreementsMap,
   boardMap,
   changedAfterAgreement,
@@ -200,7 +200,7 @@ describe('agent-board watch (real folder, real WebSocket)', () => {
     const api = await until(() => itemAt(t.doc, 'checkout/api.md'), 3000, 'api.md');
     expect(boardMap<string>(t.doc, 'meta').get('owner')).toBe('dewi');
 
-    agree(t.doc, { text: 'Intent first', covers: [api.id], by: identity });
+    agreeItem(t.doc, api.id, { by: identity });
     await until(() => agreementsMap(b.doc).get(api.id), 3000, 'agreement at the CLI');
 
     write(folder, 'checkout/api.md', 'POST /intents\nGET /intents/:id\n');
@@ -210,7 +210,7 @@ describe('agent-board watch (real folder, real WebSocket)', () => {
     expect(changedAfterAgreement(fileItemOf(t.doc, api.id)!, a)).toBe(true);
   });
 
-  it('writes the JSON export after a change: stickies, comments, decisions, no position', async () => {
+  it('writes the JSON export after a change: stickies, comments, agreements, no position', async () => {
     const folder = tempDir('ab-folder-');
     write(folder, 'checkout/api.md', 'v1');
     const b = await board(folder);
@@ -228,12 +228,13 @@ describe('agent-board watch (real folder, real WebSocket)', () => {
 
     const sticky = addSticky(t.doc, { by: identity, frame: api.frame, x: 10, y: 10, text: 'idempotency key?' });
     addComment(t.doc, { target: api.id, by: identity, text: 'timeout?' });
-    agree(t.doc, { text: 'Intent first', covers: [api.id], by: identity });
+    agreeItem(t.doc, api.id, { by: identity });
     const out = await until(() => {
       const o = read();
-      return o && o.items.some((i) => i.id === sticky) && o.decisions.length === 1 && o.comments.length === 1 ? o : undefined;
+      return o && o.items.some((i) => i.id === sticky) && o.items.some((i) => i.id === api.id && i.state === 'agreed') && o.comments.length === 1 ? o : undefined;
     }, 3000, 'export with the board changes');
-    expect(out.items.find((i) => i.id === api.id)).toMatchObject({ state: 'agreed', content: 'v1', snapshot: { content: 'v1' }, changed_after_agreement: false });
+    expect(out.items.find((i) => i.id === api.id)).toMatchObject({ state: 'agreed', content: 'v1', snapshot: { content: 'v1' }, changed_after_agreement: false, area: 'product', area_source: 'owner side' });
+    expect(out.comments[0]!.comments.map((c) => c.entry).sort()).toEqual(['timeout?', `✓ ${identity.name} agreed`].sort());
     expect(JSON.stringify(out)).not.toMatch(/"(x|y)":/);
     // No temp file left behind, and the watcher does not make a block of the export.
     expect(readdirSync(join(folder, STATE_DIR)).filter((f) => f.endsWith('.tmp'))).toEqual([]);
@@ -248,7 +249,7 @@ describe('agent-board watch (real folder, real WebSocket)', () => {
     const a = await until(() => itemAt(t1.doc, 'a.md'), 3000, 'a.md');
     const sticky = addSticky(t1.doc, { by: identity, frame: null, x: -400, y: 0, text: 'loose note' });
     addComment(t1.doc, { target: sticky, by: identity, text: 'on the note' });
-    agree(t1.doc, { text: 'ok', covers: [a.id], by: identity });
+    agreeItem(t1.doc, a.id, { by: identity });
     await until(() => agreementsMap(loadDoc(join(folder, STATE_DIR, DOC_FILE))).get(a.id), 3000, 'saved to disk');
     await t1.close();
     await b1.stop();
@@ -258,7 +259,7 @@ describe('agent-board watch (real folder, real WebSocket)', () => {
     const t2 = await tab(b2.server.port);
     await until(() => itemsMap(t2.doc).get(sticky), 3000, 'sticky after restart');
     expect(itemsMap(t2.doc).get(sticky)).toMatchObject({ text: 'loose note', author: 'dewi' });
-    expect([...itemsMap(t2.doc).values()].filter((i) => i.kind === 'comment')).toHaveLength(1);
+    expect([...itemsMap(t2.doc).values()].filter((i) => i.kind === 'comment')).toHaveLength(2);
     expect(agreementsMap(t2.doc).get(a.id)?.snapshot.text).toBe('A');
   });
 });

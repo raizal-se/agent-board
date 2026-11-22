@@ -1,4 +1,4 @@
-import { edgesMap, fileEdgesOf, fileItems, framesMap, itemsMap, layoutMap, createBoardDoc } from '@agent-board/model';
+import { areaOf, AREA_PAD, AREA_TOP, BLOCK_W, edgesMap, fileEdgesOf, fileItems, frameGeo, framesMap, GRID_GAP, itemsMap, layoutMap, createBoardDoc, sidesMap, switchArea } from '@agent-board/model';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 import { BoardWriter } from './board-writer';
@@ -199,3 +199,86 @@ describe('BoardWriter', () => {
     expect(item('a2.md')).toMatchObject({ id, gone: false });
   });
 });
+
+describe('BoardWriter: areas', () => {
+  const raizal = { name: 'Raizal', side: 'product' as const };
+  function eng(onDisk: Set<string> = new Set()) {
+    const doc = createBoardDoc();
+    // As board.ts does: the owner's device, with its side.
+    doc.getMap('devices').set('arif', { id: 'arif', name: 'arif', side: 'engineering' });
+    const writer = new BoardWriter(doc, { owner: 'arif', side: 'engineering', rootName: 'payments', exists: (p) => onDisk.has(p) });
+    const item = (path: string) => fileItems(doc).find((i) => i.path === path)!;
+    const where = (path: string) => areaOf(doc, item(path));
+    const cell = (path: string) => frameGeo(doc, item(path).frame).cells.find((c) => c.id === item(path).id)!;
+    return { doc, writer, item, where, cell };
+  }
+
+  it('front matter, the meta tag, or else the owner side', () => {
+    const { writer, item, where } = eng();
+    writer.upsert('checkout/flow.md', '---\narea: product\n---\n# Flow');
+    writer.upsert('checkout/page.html', '<head><meta name="board:area" content="product"></head><p>x</p>');
+    writer.upsert('checkout/api.md', '# API');
+    expect(item('checkout/flow.md').area).toBe('product');
+    expect(where('checkout/flow.md')).toEqual({ area: 'product', source: 'file' });
+    expect(where('checkout/page.html')).toEqual({ area: 'product', source: 'file' });
+    expect(item('checkout/api.md').area).toBeNull();
+    expect(where('checkout/api.md')).toEqual({ area: 'engineering', source: 'owner side' });
+  });
+
+  it('a new block lands in a free spot in its area, and later saves do not move it', () => {
+    const { doc, writer, item, cell } = eng();
+    writer.upsert('checkout/a.md', '# A');
+    writer.upsert('checkout/b.md', '# B');
+    expect(cell('checkout/a.md')).toMatchObject({ area: 'engineering', x: AREA_PAD, y: AREA_TOP });
+    expect(cell('checkout/b.md')).toMatchObject({ area: 'engineering', x: AREA_PAD + BLOCK_W + GRID_GAP, y: AREA_TOP });
+    const id = item('checkout/a.md').id;
+    layoutMap(doc).set(id, { x: 900, y: 700 });
+    writer.upsert('checkout/a.md', '# A\nmore text');
+    writer.upsert('checkout/a.md', '# A\nmore text, and more');
+    expect(layoutMap(doc).get(id)).toEqual({ x: 900, y: 700 });
+    expect(layoutMap(doc).get(item('checkout/b.md').id)).toMatchObject({ x: AREA_PAD + BLOCK_W + GRID_GAP, y: AREA_TOP });
+  });
+
+  it('a person switch holds over saves that keep the area; a new area value wins and clears it', () => {
+    const { doc, writer, item, where, cell } = eng();
+    writer.upsert('checkout/api.md', '---\narea: engineering\n---\nv1');
+    const id = item('checkout/api.md').id;
+    switchArea(doc, id, 'product', { by: raizal, now: 5 });
+    expect(cell('checkout/api.md').area).toBe('product');
+    const placed = layoutMap(doc).get(id);
+    writer.upsert('checkout/api.md', '---\narea: engineering\n---\nv2');
+    expect(where('checkout/api.md')).toEqual({ area: 'product', source: 'human', by: 'Raizal', at: 5 });
+    expect(layoutMap(doc).get(id)).toEqual(placed);
+    // The agent writes a new value: the last statement wins.
+    writer.upsert('checkout/api.md', '---\narea: product\n---\nv3');
+    expect(where('checkout/api.md')).toEqual({ area: 'product', source: 'file' });
+    expect(sidesMap(doc).has(id)).toBe(false);
+    expect(layoutMap(doc).get(id)).toEqual(placed);
+    // And again: now it moves, to a free spot in Engineering.
+    writer.upsert('checkout/api.md', '---\narea: engineering\n---\nv4');
+    expect(cell('checkout/api.md')).toMatchObject({ area: 'engineering', x: AREA_PAD, y: AREA_TOP });
+  });
+
+  it('a switch on a file with no area holds until the file says one', () => {
+    const { doc, writer, item, where, cell } = eng();
+    writer.upsert('checkout/api.md', 'v1');
+    const id = item('checkout/api.md').id;
+    switchArea(doc, id, 'product', { by: raizal });
+    writer.upsert('checkout/api.md', 'v2');
+    expect(where('checkout/api.md').source).toBe('human');
+    writer.upsert('checkout/api.md', '---\narea: engineering\n---\nv3');
+    expect(where('checkout/api.md')).toEqual({ area: 'engineering', source: 'file' });
+    expect(cell('checkout/api.md').area).toBe('engineering');
+  });
+
+  it('a rename to another folder lands in a free spot of its area there', () => {
+    const onDisk = new Set<string>();
+    const { writer, item, cell } = eng(onDisk);
+    writer.upsert('checkout/api.md', 'same');
+    writer.unlink('checkout/api.md');
+    writer.upsert('ui/api.md', 'same');
+    expect(item('ui/api.md').frame).toBe('frame:ui');
+    expect(cell('ui/api.md')).toMatchObject({ area: 'engineering', x: AREA_PAD, y: AREA_TOP });
+  });
+});
+
