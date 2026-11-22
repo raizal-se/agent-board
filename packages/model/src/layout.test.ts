@@ -15,6 +15,7 @@ import {
   layoutMap,
   nextFrameSpot,
   nextItemSpot,
+  isFreeIn,
   type Rect,
   settleFrames,
   STICKY_H,
@@ -51,6 +52,17 @@ describe('placement', () => {
     // Another zone has its own column; blocks in another frame do not take places here.
     expect(nextItemSpot(doc, f, { zone: 'engineering' })).toEqual({ x: zoneX('engineering'), y: ZONE_TOP });
     expect(nextItemSpot(doc, frameId('other'))).toEqual(first);
+  });
+
+  it('a spot is free when no item in the frame overlaps it', () => {
+    const doc = createBoardDoc();
+    const f = frameId('checkout');
+    itemsMap(doc).set('a', item('a', f));
+    layoutMap(doc).set('a', { x: zoneX('product'), y: ZONE_TOP });
+    expect(isFreeIn(doc, f, { x: zoneX('product') + 10, y: ZONE_TOP + 10, w: 50, h: 50 })).toBe(false);
+    expect(isFreeIn(doc, f, { x: zoneX('product') + 10, y: ZONE_TOP + 10, w: 50, h: 50 }, 'a')).toBe(true);
+    expect(isFreeIn(doc, f, { x: zoneX('engineering'), y: ZONE_TOP, w: 50, h: 50 })).toBe(true);
+    expect(isFreeIn(doc, frameId('other'), { x: zoneX('product'), y: ZONE_TOP, w: 50, h: 50 })).toBe(true);
   });
 
   it('a resized block takes its own size', () => {

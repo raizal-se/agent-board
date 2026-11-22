@@ -128,6 +128,11 @@ function takenIn(doc: Y.Doc, frame: string, exceptId?: string): Rect[] {
 
 const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
+/** Whether a rect (relative to a frame) is clear of every item in the frame. */
+export function isFreeIn(doc: Y.Doc, frame: string, rect: Rect, exceptId?: string): boolean {
+  return !takenIn(doc, frame, exceptId).some((r) => overlaps(r, rect));
+}
+
 /**
  * The first free spot from the top of a zone's column. Hidden (gone) blocks keep their place, so a
  * file that comes back lands where it was.
