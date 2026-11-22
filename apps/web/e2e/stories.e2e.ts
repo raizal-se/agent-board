@@ -1,7 +1,7 @@
 import { devices, expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { block, boundText, fitAll, guardPage, ofKind, openBoard, scene, selectPaths } from './canvas';
+import { block, boundText, fitAll, guardPage, idOf, ofKind, openBoard, scene, selectPaths } from './canvas';
 import { startCli, type RunningCli } from './cli';
 
 /** Milestones and stories in the Milestone area: import, make by hand, cover, block, approve, reset, persist, phone. */
@@ -83,12 +83,38 @@ async function stories(page: Page, n: number): Promise<string[]> {
   return storyIds(page);
 }
 
-/** Bring elements into view, big enough to read and press (the canvas renders a card only in view). */
+/**
+ * Bring elements into view, big enough to read and press, clear of the bars (the canvas renders a
+ * card only in view). The bars sit over the top left of the canvas (taller with a selection), so a
+ * plain scrollToContent can leave a card under them and a click there would hit a bar instead.
+ * The room is the app's own (bars.ts: 152 px on top on a desktop; 112 on top and 120 below on a phone).
+ */
 async function focus(page: Page, ...ids: string[]): Promise<void> {
   await page.evaluate((ids) => {
-    const api = (window as unknown as { __board: { api: { getSceneElements(): { id: string }[]; scrollToContent(t?: unknown, o?: Record<string, unknown>): void } } }).__board.api;
+    type Api = {
+      getSceneElements(): { id: string; x: number; y: number; width: number; height: number }[];
+      getAppState(): { width: number; height: number };
+      updateScene(s: { appState: Record<string, unknown> }): void;
+    };
+    const api = (window as unknown as { __board: { api: Api } }).__board.api;
     const els = api.getSceneElements().filter((e) => ids.includes(e.id));
-    api.scrollToContent(els, { fitToViewport: true, viewportZoomFactor: 0.8, animate: false });
+    if (els.length !== ids.length) throw new Error(`not on the canvas: ${ids.join(', ')}`);
+    const narrow = window.matchMedia('(max-width: 640px)').matches;
+    const room = narrow ? { top: 112, bottom: 120 } : { top: 152, bottom: 12 };
+    const x0 = Math.min(...els.map((e) => e.x));
+    const y0 = Math.min(...els.map((e) => e.y));
+    const x1 = Math.max(...els.map((e) => e.x + e.width));
+    const y1 = Math.max(...els.map((e) => e.y + e.height));
+    const { width, height } = api.getAppState();
+    const space = { w: width - 24, h: height - room.top - room.bottom };
+    const zoom = Math.min(1, (0.9 * space.w) / (x1 - x0), (0.9 * space.h) / (y1 - y0));
+    api.updateScene({
+      appState: {
+        zoom: { value: zoom },
+        scrollX: width / 2 / zoom - (x0 + x1) / 2,
+        scrollY: (room.top + space.h / 2) / zoom - (y0 + y1) / 2,
+      },
+    });
   }, ids);
 }
 
@@ -198,7 +224,7 @@ test.describe('desktop', () => {
     expect(boundText(els, arrow!.id)).toBe('blocks');
 
     // Agree on the API card: Story 1 previews its snapshot, and links to it.
-    await fitAll(page);
+    await focus(page, await idOf(page, 'checkout/api.md'));
     await block(page, 'checkout/api.md').getByTestId('agree').click();
     await expect(block(page, 'checkout/api.md').getByTestId('agreed-badge')).toBeVisible();
     await focus(page, s1!);
@@ -224,7 +250,7 @@ test.describe('desktop', () => {
 
     // A new entry in the file: "import new entries", once.
     cli.write('checkout/milestone-1.md', `${MILESTONE}\n${ENTRY_3}`);
-    await fitAll(page);
+    await focus(page, await idOf(page, 'checkout/milestone-1.md'));
     const importNew = block(page, 'checkout/milestone-1.md').getByTestId('import-new');
     await expect(importNew).toHaveText('import new entries (1)', { timeout: 5000 });
     await importNew.click();
@@ -258,7 +284,7 @@ test.describe('desktop', () => {
     await expect(s.getByTestId('story-half-engineering').getByTestId('story-preview')).toContainText('POST /intents');
 
     // "Add to story" on a card in another feature board: the product side now shows the first plus "+1".
-    await fitAll(page);
+    await focus(page, await idOf(page, 'ui/card-form.html'));
     await selectPaths(page, 'ui/card-form.html');
     await page.getByTestId('selection-bar').getByTestId('add-to-story').click();
     const choose = page.getByTestId('choose-dialog');
