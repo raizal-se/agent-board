@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { renameSync } from 'node:fs';
 import { join } from 'node:path';
-import { areaEl, areaOfPath, block, boundText, byPath, clickEl, exported, fitAll, guardPage, idOf, ofKind, openBoard, placeOf, pressPoint, scene, screenBox, type SceneEl } from './canvas';
+import { areaEl, areaOfPath, block, boundText, byPath, clickEl, exported, fitAll, firstFrame, guardPage, idOf, ofKind, openBoard, placeOf, pressPoint, scene, screenBox, toScreen, view, type SceneEl } from './canvas';
 import { startCli, type RunningCli } from './cli';
 
 const FLOW = `---
@@ -60,6 +60,37 @@ test('each subfolder is a frame, root files go to the folder frame; blocks show 
   await expect(block(page, 'readme.md')).toContainText('Payments board');
   // Excalidraw draws a link icon on any element with a link: blocks drop theirs once embedded.
   await expect.poll(async () => ofKind(await scene(page), 'file').map((e) => e.link)).toEqual(Array(5).fill(null));
+});
+
+test('the first view opens on the first feature board, readable; Fit all shows the whole board', async ({ page }) => {
+  await openBoard(page, cli!, 'checkout/flow.md', { fit: false });
+  const { width, height } = page.viewportSize()!;
+  const v = await view(page);
+  expect(v.zoom, 'card text is readable').toBeGreaterThanOrEqual(0.45);
+  const els = await scene(page);
+  const frame = firstFrame(els)!;
+  const product = areaEl(els, frame.name!, 'product')!;
+  const engineering = areaEl(els, frame.name!, 'engineering')!;
+  // Product and Engineering of the first feature board fill the width, under the header.
+  const left = await toScreen(page, { x: product.x, y: product.y });
+  const right = await toScreen(page, { x: engineering.x + engineering.width, y: engineering.y });
+  expect(left.x).toBeGreaterThanOrEqual(0);
+  expect(right.x).toBeLessThanOrEqual(width);
+  expect(left.y).toBeGreaterThan(0);
+  expect(left.y).toBeLessThan(height / 3);
+  const first = els
+    .filter((e) => e.ab?.ab === 'file' && e.frameId === frame.id)
+    .sort((a, b) => a.y - b.y || a.x - b.x)[0]!;
+  await expect(block(page, first.ab!.path as string)).toBeInViewport();
+
+  await page.getByRole('button', { name: 'Fit all' }).click();
+  await expect.poll(async () => (await view(page)).zoom).toBeLessThan(v.zoom);
+  const all = (await scene(page)).filter((e) => e.type === 'frame');
+  const a = await toScreen(page, { x: Math.min(...all.map((e) => e.x)), y: Math.min(...all.map((e) => e.y)) });
+  const b = await toScreen(page, { x: Math.max(...all.map((e) => e.x + e.width)), y: 0 });
+  expect(a.x).toBeGreaterThanOrEqual(0);
+  expect(a.y).toBeGreaterThanOrEqual(0);
+  expect(b.x).toBeLessThanOrEqual(width);
 });
 
 test('each frame is one board of four areas: Product, Engineering, Agreed and Milestone', async ({ page }) => {
@@ -338,7 +369,7 @@ test('a dragged block keeps its place after a reload', async ({ page }) => {
 
   await page.waitForTimeout(400); // the CLI saves the doc shortly after each change
   await page.reload();
-  await expect(block(page, 'checkout/api.md')).toBeVisible();
+  await openBoard(page, cli!, 'checkout/api.md');
   expect(await placeOf(page, 'checkout/api.md')).toEqual(after);
 });
 
@@ -381,8 +412,7 @@ test('the board survives a CLI restart', async ({ page }) => {
   await cli!.stop();
   await expect(page.getByTestId('status')).not.toHaveAttribute('data-status', 'online');
   cli = await startCli({}, folder);
-  await page.goto(cli.url);
-  await expect(block(page, 'checkout/api.md')).toBeVisible();
+  await openBoard(page, cli, 'checkout/api.md');
   expect(await idOf(page, 'checkout/api.md')).toBe(id);
   expect(await placeOf(page, 'checkout/api.md')).toEqual(pos);
 });

@@ -76,6 +76,19 @@ export function areaOfPath(els: SceneEl[], path: string): string | null {
   if (!el || !frame) return null;
   return ['product', 'engineering', 'agreed', 'milestone'].find((a) => centreIn(el, areaEl(els, frame, a))) ?? null;
 }
+/** The first feature board: the leftmost frame (then the topmost). */
+export function firstFrame(els: SceneEl[]): SceneEl | undefined {
+  return els.filter((e) => e.type === 'frame').sort((a, b) => a.x - b.x || a.y - b.y || a.id.localeCompare(b.id))[0];
+}
+
+/** The scene's view: scroll and zoom. */
+export async function view(page: Page): Promise<{ scrollX: number; scrollY: number; zoom: number }> {
+  return page.evaluate(() => {
+    const s = (window as unknown as { __board: { api: { getAppState(): Record<string, any> } } }).__board.api.getAppState();
+    return { scrollX: s.scrollX, scrollY: s.scrollY, zoom: s.zoom.value };
+  });
+}
+
 /** A snapshot card on the page, by the path of its file. */
 export const snapshotCard = (page: Page, path: string) => page.locator(`[data-testid="snapshot-card"][data-path="${path}"]`);
 export const byPath = (els: SceneEl[], path: string) => els.find((e) => e.ab?.ab === 'file' && e.ab.path === path);
@@ -155,15 +168,23 @@ export async function selectPaths(page: Page, ...paths: string[]): Promise<void>
 export const block = (page: Page, path: string) => page.locator(`[data-testid="block"][data-path="${path}"]`);
 
 /**
- * Open the board and wait until the doc is on the canvas: `first` has its element in the scene
- * and its block's DOM shows, and every file the CLI exported has its block in the scene.
+ * Open the board and wait until the doc is on the canvas: `first` has its element in the scene,
+ * the board has taken its first view, and every file the CLI exported has its block in the scene.
+ * Then, unless `fit` is false, show the whole board (Excalidraw mounts a card only once it has been
+ * in view) and wait for `first`'s block to show. With `fit: false` the page keeps its first view.
  */
-export async function openBoard(page: Page, cli: RunningCli, first: string): Promise<void> {
+export async function openBoard(page: Page, cli: RunningCli, first: string, { fit = true }: { fit?: boolean } = {}): Promise<void> {
   await page.goto(cli.url);
   await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'online');
   await canvasUp(page);
   await idOf(page, first);
-  await expect(block(page, first)).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => !!(window as unknown as { __board: { opened?: boolean } }).__board.opened), { message: 'the board took its first view' })
+    .toBe(true);
+  if (fit) {
+    await fitAll(page);
+    await expect(block(page, first)).toBeVisible();
+  }
   await expect
     .poll(async () => {
       const files = (exported(cli)?.items ?? []).filter((i) => i.kind === 'file' && !i.gone).map((i) => i.path!);

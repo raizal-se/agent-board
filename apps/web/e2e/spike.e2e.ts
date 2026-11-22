@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { fitAll } from './canvas';
 import { startCli, type RunningCli } from './cli';
 
 /**
@@ -89,9 +90,15 @@ async function scene(page: Page): Promise<SceneEl[]> {
 
 const byPath = (els: SceneEl[], path: string) => els.find((e) => e.ab?.ab === 'file' && e.ab.path === path)!;
 
-async function open(page: Page, first = 'checkout/flow.md') {
-  await page.goto(cli.url);
+/** Open (or reload) the board, wait for its first view, then show the whole board. */
+async function open(page: Page, first = 'checkout/flow.md', reload = false) {
+  if (reload) await page.reload();
+  else await page.goto(cli.url);
   await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'online');
+  await expect
+    .poll(() => page.evaluate(() => !!(window as unknown as { __board?: { opened?: boolean } }).__board?.opened))
+    .toBe(true);
+  await fitAll(page);
   await expect(block(page, first)).toBeVisible();
   // The block's DOM can show before the scene settles: wait for its element in the scene too.
   await expect.poll(async () => !!byPath(await scene(page), first)).toBe(true);
@@ -166,8 +173,7 @@ test('a dragged block keeps its place after a reload; a file save during the dra
   await expect.poll(async () => byPath(await scene(page), 'checkout/flow.md').x).not.toBe(before.x);
   const moved = byPath(await scene(page), 'checkout/flow.md');
   await page.waitForTimeout(600);
-  await page.reload();
-  await expect(target).toBeVisible();
+  await open(page, 'checkout/flow.md', true);
   await expect(target).toContainText(token);
   const after = byPath(await scene(page), 'checkout/flow.md');
   expect(Math.round(after.x)).toBe(Math.round(moved.x));
