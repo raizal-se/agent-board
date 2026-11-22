@@ -60,7 +60,16 @@ function placed(old: Layout | undefined, x: number, y: number, w: number, h: num
   return next;
 }
 
-const sameLayout = (a: Layout | undefined, b: Layout) => !!a && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h && a.tilt === b.tilt;
+const sameLayout = (a: Layout | undefined, b: Layout) =>
+  !!a && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h && a.tilt === b.tilt && a.placedBy === b.placedBy;
+
+/** A person moved it: the place is theirs now, and the board never pushes it (see `settleGrowth`). */
+function byPerson(old: Layout | undefined, next: Layout): Layout {
+  if (!old || (old.x === next.x && old.y === next.y)) return next;
+  const out = { ...next };
+  delete out.placedBy;
+  return out;
+}
 
 /** An element as plain JSON for the doc. */
 function plain(el: El): CanvasShape {
@@ -142,7 +151,7 @@ export function writeScene(doc: Y.Doc, elements: readonly El[], seen: Map<string
           const x = el.x - z.x;
           const y = el.y - z.y;
           const next = kind === 'decision' ? placed(layout.get(el.id), x, y, el.width, el.height, sizeIn(undefined, 'decision')) : cardPlaced(layout.get(el.id), x, y, el.width, el.height);
-          setLayout(el.id, next);
+          setLayout(el.id, byPerson(layout.get(el.id), next));
           break;
         }
         case 'sticky': {

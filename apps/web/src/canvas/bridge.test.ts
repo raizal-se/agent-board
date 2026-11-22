@@ -249,6 +249,18 @@ describe('elements to doc', () => {
     expect(canvas.get('y')).toMatchObject({ x: O - 20, y: O - 8 });
   });
 
+  it("a person's move makes a board-placed card theirs; a change of height alone does not", () => {
+    layoutMap(doc).set('x', { ...layoutOf('x')!, placedBy: 'board' });
+    vi.runAllTimers();
+    canvas.edit('x', { height: 900 });
+    sync.flush();
+    expect(layoutOf('x')).toMatchObject({ h: 900, placedBy: 'board' });
+    const at = canvas.get('x');
+    canvas.edit('x', { x: at.x + 60, y: at.y + 40 });
+    sync.flush();
+    expect(layoutOf('x')?.placedBy).toBeUndefined();
+  });
+
   it('writes a resized block with its size', () => {
     canvas.edit('x', { width: 500, height: 420 });
     sync.flush();
