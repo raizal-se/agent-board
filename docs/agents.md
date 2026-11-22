@@ -47,7 +47,7 @@ In HTML, add a meta tag:
 - A new block gets a free spot in its area once. After that, only people move it. Saving the file does not move it. One exception: while no person has moved a block, the board pushes it down when the card above it grows into it.
 - A person can move your block to the other area with the switch on the block. The board shows that in `board.json` as `area_source: "human"`.
 - **If a human moved your block, do not change `area` back unless asked.** A new `area` value in the file wins over the person's move, so change it only when you mean to.
-- Agreed and Milestone are for people. You cannot put a block there.
+- Agreed and Milestone are for people. You cannot put a block there. To propose stories for the Milestone area, write a milestone file (see "Milestone files").
 
 ## Links between files
 
@@ -97,6 +97,57 @@ If the diagram has an error, the block shows the source and the error. Fix the f
 - The thumbnail lays the page out about 860 px wide and shows its full height, up to a cap. Make it read well at that width. The person can open it full size.
 - Thumbnails take no clicks. The person opens the page to click through it.
 
+## Milestone files
+
+A milestone is the goal of one phase of a feature. It holds stories. You write the first cut of a milestone as one markdown file. The board turns each entry into a draft story block in the Milestone area of the same frame.
+
+A file is a milestone file when both are true:
+
+- Its name is `milestone-<something>.md`, for example `checkout/milestone-1.md`.
+- Its first heading is `# Milestone <number>: <name>`.
+
+Other files are normal blocks.
+
+```markdown
+# Milestone 1: Pay by card
+Goal: a shopper can pay by card, with 3DS.
+
+## Payment ready before form
+- story: As a shopper, I want my payment to be ready before I see the card form, so that checkout feels instant.
+- size: S
+- owner:
+- covers: card-form.html, flow.md
+- blocked-by:
+- check: the card form opens with an intent ID already set.
+
+## Pass the 3DS check
+- story: As a shopper, I want to pass the 3DS check of my bank, so that my card payment is accepted.
+- size: M
+- owner: Mei Ling
+- covers: 3ds.html, 3ds-flow.md
+- blocked-by: Payment ready before form
+- check: a 3DS test card shows the bank challenge, and the intent status is succeeded.
+```
+
+- Put the file in the frame of the feature. One file for each milestone.
+- The `Goal:` line comes after the `#` heading.
+- Each `##` heading is one story. The heading is its short title. Use a different title for each story.
+- The fields are `story`, `size`, `owner`, `covers`, `blocked-by` and `check`. Write each as `- name: value` on one line.
+- `story`: one sentence, "As a …, I want …, so that …".
+- `size`: `S` or `M`. A story that is too big to build, test and merge fast is `L`. The board shows "split it" on it, and nobody can approve it. Write two smaller stories instead.
+- `owner`: a person's name, or empty. Nobody can approve a story with no owner.
+- `covers`: the cards the story builds, separated by commas. Use a path from the root, a path from the milestone file's folder, or a file name that only one card has. Cover agreed cards: the story shows their agreed snapshots.
+- `blocked-by`: titles of other stories in the same file, separated by commas.
+- `check`: one acceptance check, "We know it works when …". Nobody can approve a story with no check.
+- Other fields are kept as you wrote them, in `extra_fields`.
+
+### The board reads the file once
+
+- The board reads the file one time, when it first sees it. Then the stories belong to the people.
+- **Never edit stories through the file.** Changes to existing entries do nothing. Read the stories in `board.json`.
+- If you add a `##` entry with a new title and save, the file block offers "import new entries". A person decides to import it.
+- If a person asks for a change to a story, tell them in your chat. They change it on the board.
+
 ## Reading the board
 
 People think on the board too. They add sticky notes, comment on blocks, draw links, and agree on or reject blocks.
@@ -109,7 +160,7 @@ To see that, read `.agent-board/board.json` in the root.
 
 ### Fields
 
-Top level: `format` (`"agent-board/1"`), `agreement_mode` (`"solo"`: one person's accept is enough), `board` (`id`, `name`), `frames`, `items`, `edges`, `comments`, `decisions`.
+Top level: `format` (`"agent-board/1"`), `agreement_mode` (`"solo"`: one person's accept is enough), `board` (`id`, `name`), `frames`, `items`, `edges`, `comments`, `decisions`, `milestones`, `stories`.
 
 `frames`: `id` and `name`. Each first-level folder is one.
 
@@ -141,9 +192,36 @@ Top level: `format` (`"agent-board/1"`), `agreement_mode` (`"solo"`: one person'
 
 `decisions`: agreements made on older boards, before agreeing on a block: `id`, `frame`, `text`, `covers` (item ids), `accepts` (`name`, `side`, `at`), `agreed`, `author`, `created_at`.
 
+`milestones`: `id`, `frame`, `number`, `name`, `goal`, `author`, `source_path` (the milestone file, or `null` when a person made it), `imported_titles`, `stories` (story ids), `summary` (`"4 stories · 2 approved · 1 can start"`), `linear` (`null`).
+
+`stories`: one entry for each story. People own them. You read them, and you never edit them.
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Stable id, for example `"story-3"`. |
+| `milestone`, `frame` | The milestone and the frame it is in. |
+| `number` | "Story 3". A name only. Stories have no order. |
+| `title`, `story`, `check` | The short title, the story sentence and the acceptance check. |
+| `covers` | The cards it covers: `id`, `path`, `area` (`"product"` or `"engineering"`, the area of the card now) and `state` (`"agreed"`, `"not agreed"`, `"changed after agreement"` or `"gone"`). |
+| `covers_missing` | Names from the milestone file that matched no card. |
+| `owner` | A person's name, or `null`. |
+| `size` | `"S"`, `"M"`, `"L"` or `null`. |
+| `blocked_by` | Ids of stories in the same milestone. |
+| `can_start` | `true` when no story blocks it. |
+| `accepts`, `approved` | Who accepted it (`name`, `side`, `at`), and whether that is enough for `agreement_mode`. An edit to the title, story, check or size clears the accepts. |
+| `cannot_accept` | Why nobody can accept it now (`"Too big · split it"`, `"Set an owner first"`, `"Write the check first"`), or `null`. |
+| `rejected` | The last reject (`by`, `at`, `reason`) until the next edit or accept, or `null`. |
+| `covered_card_changed` | `true` when a covered card changed after it was agreed. |
+| `ready_for_linear` | `true` when it is approved, has an owner, a check and size `S` or `M`, and no covered card changed after agreement. |
+| `linear` | `null`. Linear is not connected yet. |
+| `author`, `author_kind` | `"<owner>'s agent"` and `"agent"` for imported stories; the person and `"human"` for stories made on the board. |
+| `source` | The milestone file and entry title it came from, or `null`. |
+| `extra_fields` | Fields of the entry the board does not know. |
+
 ### What to do with it
 
 - An open thread on your file is a question or a request. Read it before you change the file.
 - A sticky in a frame is a note about that topic. Take it into account. Do not copy it into your files unless asked.
 - A block marked "changes requested" has a reason in its thread. Change the file to answer it. Saving it marks the block "updated, review again".
+- A story is the people's plan. Build what the approved stories say. If a story looks wrong, tell the person. Do not change the milestone file to change it.
 - An agreed file is a promise. Before you change it, tell the person. After you change it, the board marks it "changed after agreement" and they decide whether to keep the old agreement or agree again.
