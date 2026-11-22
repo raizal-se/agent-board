@@ -7,6 +7,7 @@ import { BoardWriter } from './board-writer';
 import type { Identity } from './config';
 import { startServer, type BoardServer } from './server';
 import { autoExport, autoSave, autoSettle, DOC_FILE, EXPORT_FILE, loadDoc, STATE_DIR } from './store';
+import { autoImport } from './milestones';
 import { fileExists, watchFolder } from './watcher';
 
 /** The built web app, next to this package in the monorepo. */
@@ -69,11 +70,13 @@ export async function startBoard(opts: BoardOptions): Promise<RunningBoard> {
   const settler = autoSettle(doc);
   const exporter = autoExport(doc, join(folder, STATE_DIR, EXPORT_FILE));
   const watcher = watchFolder(writer, folder, { poll: opts.poll, log });
+  const importer = autoImport(doc, watcher.ready, { log });
   let server: BoardServer;
   try {
     server = await startServer({ doc, port: opts.port, webDir, log });
   } catch (err) {
     await watcher.close();
+    importer.close();
     writer.dispose();
     settler.close();
     exporter.close();
@@ -89,6 +92,7 @@ export async function startBoard(opts: BoardOptions): Promise<RunningBoard> {
     ready: watcher.ready,
     stop: async () => {
       await watcher.close();
+      importer.close();
       // Pending deletes stay undecided: if one was half of a rename, the next start still sees
       // the moved file and keeps its block. The first scan then marks the rest gone.
       writer.dispose();
