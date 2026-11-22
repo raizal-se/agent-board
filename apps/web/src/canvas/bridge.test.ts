@@ -311,6 +311,25 @@ describe('locked file items', () => {
     expect(canvas.get('x').link).toBe('agent-board:x');
   });
 
+  it('a block keeps its embed link until Excalidraw has checked it, then drops it (no link icon)', () => {
+    // First push: the link is there for Excalidraw to check.
+    expect(canvas.get('x').link).toBe('agent-board:x');
+    // onChange (after Excalidraw checked the embeds): the next merge drops the link, and keeps it dropped.
+    sync.changed();
+    vi.advanceTimersByTime(20);
+    expect(canvas.get('x').link).toBeNull();
+    expect(canvas.get('z').link).toBeNull();
+    canvas.edit('x', { link: 'https://example.com' });
+    sync.run();
+    expect(canvas.get('x').link).toBeNull();
+
+    // A block that arrives later gets its link first, like the first ones.
+    itemsMap(doc).set('w', file('w', 'a/w.md', 'frame:a'));
+    vi.runAllTimers();
+    expect(canvas.get('w').link).toBe('agent-board:w');
+    expect(canvas.get('x').link).toBeNull();
+  });
+
   it('a file link and its label are locked', () => {
     expect(canvas.get('fe:x->a/y.md#').locked).toBe(true);
     expect(canvas.get('fe:x->a/y.md#~label').locked).toBe(true);

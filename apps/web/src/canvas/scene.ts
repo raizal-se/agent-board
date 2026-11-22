@@ -54,7 +54,18 @@ function boundTextId(local: ReadonlyMap<string, El>, containerId: string): strin
  * frames; then arrows and their labels. Arrows go from box to box here; `mergeScene` keeps the
  * geometry the canvas has when neither end moved.
  */
-export function docElements(state: BoardState, v: Views, local: ReadonlyMap<string, El>, measure: Measure): El[] {
+/**
+ * The doc as canvas elements. `embedded`: blocks Excalidraw has already accepted as embeds. They
+ * drop their link: Excalidraw checks an embed's link once per element id and keeps the answer, and
+ * it draws a link icon on every element that has a link.
+ */
+export function docElements(
+  state: BoardState,
+  v: Views,
+  local: ReadonlyMap<string, El>,
+  measure: Measure,
+  embedded: ReadonlySet<string> = new Set(),
+): El[] {
   const frameById = new Map<string, FrameView>(v.frames.map((f) => [f.frame.id, f]));
   const boxes = new Map<string, Box>();
   const bound = new Map<string, BoundRef[]>();
@@ -178,7 +189,7 @@ export function docElements(state: BoardState, v: Views, local: ReadonlyMap<stri
           height: size.h,
           strokeColor: BLOCK_STROKE,
           backgroundColor: '#ffffff',
-          link: embedLink(id),
+          link: embedded.has(id) ? null : embedLink(id),
           frameId: fid,
           boundElements: refs(id),
           customData: {
@@ -206,7 +217,7 @@ export function docElements(state: BoardState, v: Views, local: ReadonlyMap<stri
           height: size.h,
           strokeColor: BLOCK_STROKE,
           backgroundColor: '#ffffff',
-          link: embedLink(id),
+          link: embedded.has(id) ? null : embedLink(id),
           frameId: fid,
           boundElements: refs(id),
           customData: { ab: 'decision', id, author: d.decision.author },

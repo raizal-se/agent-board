@@ -2,7 +2,7 @@ import { boardMap, canvasMap, type Device, type Person } from '@agent-board/mode
 import type * as Y from 'yjs';
 import { views } from '../board/derive';
 import { readBoard } from '../board/useBoard';
-import type { El, Measure } from './elements';
+import { EMBED_SCHEME, kindOf, type El, type Measure } from './elements';
 import { docElements, heldIds, inGesture, mergeScene, type GestureState } from './scene';
 import { writeScene } from './writeBack';
 
@@ -32,6 +32,8 @@ export class BoardSync {
   private readonly known = new Set<string>();
   /** The live elements the last merge left on the canvas. */
   private pushed = new Set<string>();
+  /** Blocks Excalidraw has checked as embeds (see `docElements`). */
+  private readonly embedded = new Set<string>();
   private timer: ReturnType<typeof setTimeout> | null = null;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
@@ -82,7 +84,7 @@ export class BoardSync {
    */
   changed(): void {
     if (this.stopped) return;
-    if (this.lost()) this.schedule();
+    if (this.lost() || this.checkedEmbeds()) this.schedule();
     if (this.flushTimer) return;
     this.flushTimer = setTimeout(() => {
       this.flushTimer = null;
@@ -104,6 +106,23 @@ export class BoardSync {
     return false;
   }
 
+  /**
+   * Notes the blocks Excalidraw has now checked as embeds; true if there are new ones. Called from
+   * onChange, which Excalidraw emits after it checks the embeds on the canvas (App.componentDidUpdate:
+   * updateEmbeddables, then onChange), so every block with its link on the canvas now is checked.
+   */
+  private checkedEmbeds(): boolean {
+    let added = false;
+    for (const e of this.api.getSceneElementsIncludingDeleted()) {
+      if (e.isDeleted || e.type !== 'embeddable' || !e.link?.startsWith(EMBED_SCHEME) || this.embedded.has(e.id)) continue;
+      const kind = kindOf(e);
+      if (kind !== 'file' && kind !== 'decision') continue;
+      this.embedded.add(e.id);
+      added = true;
+    }
+    return added;
+  }
+
   /** Write settled changes, then lay the doc over the canvas. */
   run(): void {
     if (this.stopped) return;
@@ -113,7 +132,7 @@ export class BoardSync {
     const held = inGesture(app, this.pointerDown) ? heldIds(app, local, this.pointerDown) : new Set<string>();
     const state = readBoard(this.doc);
     const localById = new Map(local.map((e) => [e.id, e]));
-    const desired = docElements(state, views(state), localById, this.opts.measure);
+    const desired = docElements(state, views(state), localById, this.opts.measure, this.embedded);
     const stored = new Map(canvasMap(this.doc).entries());
     const { elements, changed } = mergeScene({ desired, stored, local, held, known: this.known });
     for (const id of stored.keys()) this.known.add(id);
