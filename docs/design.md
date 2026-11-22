@@ -1,7 +1,7 @@
 # agent-board: design
 
 Status: agreed in a grilling session on 2026-11-20, updated on 2026-11-21 after the screen
-review. Nothing is built yet. "agent-board" is a working name.
+review, and on 2026-11-22 as the build went on. "agent-board" is a working name.
 
 ## What changed on 2026-11-22
 
@@ -10,6 +10,13 @@ review. Nothing is built yet. "agent-board" is a working name.
   A file says its area with `area:` front matter or the `board:area` meta tag; a person can switch it.
 - **Agree and reject are buttons on the card**. Agree takes a snapshot, shown as a snapshot card in
   the Agreed area. Reject needs a reason. Both are entries in the card's comment thread.
+- **Milestones and stories are built** (section 5). An agent writes `<feature>/milestone-<n>.md`;
+  the board imports it once into draft stories in the Milestone area.
+- **Peer to peer is built, and joining needs no code** (sections 9, 9.1 and 10). A guest needs only
+  a browser: open the invite link, type a name, pick a side. A member lets them in with one click.
+  The typed join code (CPace) is dropped; the reason is in section 9.1.
+- **"Connect your agent"** on the board page gives each person a prompt to paste into their own
+  agent (section 8).
 
 ## What changed on 2026-11-21
 
@@ -298,6 +305,12 @@ produce. They never change items from other people or other agents.
 
 Each owner prompts their own agent during the meeting. No shared agent sits on the board in v1.
 
+**Connect your agent:** the board page has a "Connect your agent" button. It shows a prompt to copy
+into any agent. The prompt tells the agent to run `agent-board join '<invite link>' <folder>` and keep
+it running, so the folder streams to the board as that person's files. It also says how to read the
+board export, which files the agent may write, and the rules above. So a person who has only joined
+in a browser can still hand the work to their own agent.
+
 **Trust:** files can contain instructions for other agents, if they are about the project. This is
 accepted because the board is a trusted space for trusted people. It is a known risk, and we review
 it if the board is ever opened to more people.
@@ -312,30 +325,51 @@ The goal is fully peer-to-peer. The team runs no server.
   through free public relays (Nostr or BitTorrent trackers), encrypted with the room secret. The
   relays never see board content.
 - **NAT traversal:** free public STUN servers. There is no TURN relay in v1.
-- **App hosting:** Cloudflare Pages, on a personal free account. It holds only the app code.
-- **Room secret:** after the `#` in the invite link. Browsers never send that part to a server.
+- **Peers:** every browser and every CLI is a full peer. The person who made the board is the
+  "host" only in the sense that they sent the invite. When their CLI is offline, the others keep
+  working with each other.
+- **App hosting:** the web app is static and needs no CLI. It is planned for Cloudflare Pages, on a
+  personal free account, and holds only the app code. It is not deployed yet: for now the host runs
+  `agent-board app` and puts a tunnel in front of it (for example `bb connect expose`). The CLI takes
+  that address as `--app-url`, so the invite link opens the right page.
+- **Invite link:** `<app URL>/#<board id>.<secret>.<root key>`. Everything after `#` stays in the
+  browser; browsers never send that part to a server. The secret encrypts the room. The root key is
+  the device that made the board: every approved device leads back to it.
 - **If a direct link fails** because of a strict network, the board says so clearly. Tailscale or a
   company VPN comes later for those cases.
 
 ### 9.1 Joining a board
 
-1. A team member sends the invite link in Slack.
-2. The guest opens the link in the browser.
-3. An approved member's page shows "someone wants to join", with the guest's name and a code.
-4. The member sends the code to the guest in Slack.
-5. The guest types the code on their page.
-6. The code is mixed into the key exchange. A wrong code, or someone in the middle, makes the
-   join fail.
+1. A member sends the invite link in Slack (`agent-board invite <folder> --app-url <URL>` prints it).
+2. The guest opens the link in a browser. No install, no terminal.
+3. The guest types a name and picks Product or Engineering, then taps "Ask to join".
+4. Every approved member's page shows "Dewi (product) wants to join", with a short device
+   fingerprint, and **Approve / Deny**. One click. The other members see "Raizal is handling this".
+5. The guest sees "Waiting for Raizal to let you in", then "You're in".
 
-- Each device makes its own key pair on the first join.
-- The board keeps a list of approved devices. An approved device joins later without a prompt.
-- Any approved member can approve new devices and revoke a device.
-- The approved list travels with the board, so no single "host" is needed.
+- Each device makes its own key pair (ed25519) on first use.
+- The board keeps a signed list of approved devices. Each entry is signed by an approved device and
+  leads back to the root key in the link. An approved device rejoins later with no prompt.
+- After the first sync, the guest checks that the device that approved it is on that list.
+- Any approved member can approve new devices and revoke a device. The list travels with the board,
+  so no single "host" is needed.
+- One pending request per guest device, a rate limit on requests, and names are normalized and kept
+  short.
+- **Why no typed code (CPace):** a code helps only if it is a secret that the two people share and
+  nobody else knows. Here the only shared secret is the invite link, and everyone invited has it.
+  The relays never see the handshake in clear, because the room secret encrypts it. So a code adds
+  steps for a non-technical guest and no real guarantee. The fingerprint is the check for people who
+  want one.
+- A person with an agent can also join from the CLI: `agent-board join '<invite link>' <folder>`.
+  Their CLI is a peer that streams their folder; a member approves it the same way.
+- Plain words on screen: "Raizal is offline, you're still working on your own copy", "Your network
+  blocks a direct link to Dewi; ask them to try another Wi-Fi or a phone hotspot". No ports, relays or
+  keys.
 
 ### 9.2 When nobody is online
 
-- The board lives in each peer's local copy. The next person who opens it syncs from whoever is
-  online.
+- The board lives in each peer's local copy (IndexedDB in a browser, a file next to the folder for
+  the CLI). The next person who opens it syncs from whoever is online.
 - Anyone can save the board as a JSON file.
 - An always-on seed peer comes in v2.
 
@@ -343,9 +377,13 @@ The goal is fully peer-to-peer. The team runs no server.
 
 The CLI runs on each person's laptop.
 
-- **Setup, once:** your name, your side (product or engineering), the project folder, the shared
-  folder and the board to connect to. The CLI walks you through it.
-- **Joins the room** the same way a browser does: Trystero, then the join code.
+- **Setup, once:** `agent-board setup --name <name> --side <side>` saves your name and side and
+  makes this device's key.
+- **Commands:** `watch <folder>`, `invite <folder> --app-url <URL>`, `join '<invite link>' <folder>`
+  and `app` (serves the web app alone, for browser-only guests).
+- **Joins the room** the same way a browser does: Trystero, then a member approves the device.
+- **Owner check:** every peer rejects a change to a file item that does not come from its owner's
+  device.
 - **Watches the shared folder** and streams each file to its block.
 - **Reads links** from front matter and `board:link` meta tags, and turns them into edges.
 - **Imports a milestone file** as a milestone with draft story blocks.
