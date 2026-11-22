@@ -149,3 +149,8 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 .excalidraw .default-sidebar-trigger, .excalidraw .excalidraw__embeddable-hint { display: none !important; }
 /* An embedded block fills its element; the element draws no frame of its own around it. */
 .excalidraw__embeddable-container .block, .excalidraw__embeddable-container .decision { border-radius: 8px; }
+/* Excalidraw passes pointer events through an embed to the canvas (so a press on a block selects
+   and drags it); the block's own buttons take theirs. */
+.excalidraw__embeddable-container .block-open,
+.excalidraw__embeddable-container .comment-pin,
+.excalidraw__embeddable-container .changed-mark button { pointer-events: auto; }
