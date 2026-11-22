@@ -153,6 +153,21 @@ describe('doc to elements', () => {
 });
 
 describe('a scene replaced under the bridge', () => {
+  it('pushes nothing while Excalidraw loads its initial scene, then draws the doc once it has', () => {
+    const fresh = new FakeCanvas();
+    fresh.app = { selectedElementIds: {}, isLoading: true };
+    const s = new BoardSync(board(), fresh, { measure: roughMeasure });
+    s.start();
+    vi.runAllTimers();
+    expect(fresh.scene).toEqual([]);
+    // initializeScene: the (empty) initial scene goes on, isLoading turns false, then onChange.
+    fresh.app = { selectedElementIds: {} };
+    s.changed();
+    vi.runAllTimers();
+    expect(fresh.get('x')).toMatchObject({ type: 'embeddable', x: 32, y: 76 });
+    s.stop();
+  });
+
   it('draws the doc again when the canvas loses its elements (Excalidraw loading initialData after the first push)', () => {
     const drawn = canvas.scene.filter((e) => !e.isDeleted).map((e) => e.id).sort();
     expect(drawn.length).toBeGreaterThan(0);

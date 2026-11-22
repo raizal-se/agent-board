@@ -283,6 +283,8 @@ export function docElements(
 
 /** The parts of Excalidraw's AppState that say what the user is doing right now. */
 export interface GestureState {
+  /** True from Excalidraw's constructor until initializeScene has put `initialData` on the canvas. */
+  isLoading?: boolean;
   selectedElementIds: Readonly<Record<string, true | boolean>>;
   selectedElementsAreBeingDragged?: boolean;
   isResizing?: boolean;

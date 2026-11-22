@@ -37,6 +37,8 @@ export class BoardSync {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
+  /** A merge was skipped while Excalidraw was still loading its initial scene. */
+  private waiting = false;
   /** Merges pushed to the canvas, for tests and the spike numbers. */
   pushes = 0;
 
@@ -78,13 +80,12 @@ export class BoardSync {
 
   /**
    * The canvas changed (Excalidraw's onChange: keys, menus, edits): write it to the doc when settled.
-   * If the scene was replaced under us, merge again now. Excalidraw does this once at start-up: it
-   * hands out its API in its constructor, then, after mount, loads `initialData` and replaces the
-   * whole scene with it (App.initializeScene), wiping what we pushed in between.
+   * Merge now if the canvas just finished loading (see `run`), or if the scene was replaced under
+   * us some other way (a file dropped on the canvas loads the same way).
    */
   changed(): void {
     if (this.stopped) return;
-    if (this.lost() || this.checkedEmbeds()) this.schedule();
+    if ((this.waiting && !this.api.getAppState().isLoading) || this.lost() || this.checkedEmbeds()) this.schedule();
     if (this.flushTimer) return;
     this.flushTimer = setTimeout(() => {
       this.flushTimer = null;
@@ -126,6 +127,11 @@ export class BoardSync {
   /** Write settled changes, then lay the doc over the canvas. */
   run(): void {
     if (this.stopped) return;
+    // Excalidraw hands out its API in its constructor, then, after mount, awaits `initialData` and
+    // replaces the whole scene with it (App.initializeScene), with isLoading true until then.
+    // Anything pushed before would be wiped: wait for the onChange that follows the load.
+    this.waiting = !!this.api.getAppState().isLoading;
+    if (this.waiting) return;
     this.flush();
     const local = this.api.getSceneElementsIncludingDeleted();
     const app = this.api.getAppState();
