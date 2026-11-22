@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import * as Y from 'yjs';
 import { agreeItem } from './agreement';
 import { boardGeometry, geoInput, switchArea } from './area';
 import { exportBoard } from './export';
@@ -413,5 +414,31 @@ describe('deleting', () => {
     out = exportBoard(doc);
     expect(out.milestones.map((m) => m.id)).toEqual([other]);
     expect(out.stories.map((s) => s.id)).toEqual(['story-3']);
+  });
+
+  it('a delete on one copy syncs to the other copy and does not come back', () => {
+    const { doc: a, ms } = board();
+    importMilestone(a, ms, INPUT, { now: 0 });
+    addComment(a, { target: 'story-1', by: dewi, text: 'hi' });
+    const b = new Y.Doc();
+    Y.applyUpdate(b, Y.encodeStateAsUpdate(a));
+    const toA = (u: Uint8Array) => Y.applyUpdate(a, u);
+    b.on('update', toA);
+    // A member on the other copy deletes the story, then the milestone.
+    deleteStory(b, 'story-1');
+    expect(storiesMap(a).has('story-1')).toBe(false);
+    expect(commentsOn(a, 'story-1')).toEqual([]);
+    expect(storiesMap(a).get('story-2')?.blockedBy).toEqual([]);
+    deleteMilestone(b, milestoneFromFile(b, ms.id)!.id, { by: 'Dewi' });
+    b.off('update', toA);
+    // A full merge both ways brings nothing back.
+    Y.applyUpdate(a, Y.encodeStateAsUpdate(b));
+    Y.applyUpdate(b, Y.encodeStateAsUpdate(a));
+    for (const d of [a, b]) {
+      expect(milestonesMap(d).size).toBe(0);
+      expect(storiesMap(d).size).toBe(0);
+      expect(isDroppedImport(d, ms.id)).toBe(true);
+    }
+    expect(exportBoard(a).stories).toEqual([]);
   });
 });
