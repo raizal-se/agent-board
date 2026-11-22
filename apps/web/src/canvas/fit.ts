@@ -1,4 +1,9 @@
-/** The first view of the board: the content as large as fits, from the top, centred left to right. */
+import { AREA_PAD, BLOCK_W } from '@agent-board/model';
+
+/**
+ * The view of the board: the first view opens on the first feature board, readable; "Fit all"
+ * shows the whole board, as large as fits, from the top, centred left to right.
+ */
 
 export interface Bounds {
   minX: number;
@@ -66,4 +71,52 @@ export function inView(
   const right = -v.scrollX + v.width / v.zoom;
   const bottom = -v.scrollY + (v.height - (v.bottom ?? 0)) / v.zoom;
   return b.minX >= left && b.minY >= top && b.maxX <= right && b.maxY <= bottom;
+}
+
+/** On a desktop the first view never goes below this zoom: card text stays readable. */
+export const DESKTOP_READABLE_ZOOM = 0.45;
+
+/**
+ * The smallest zoom at which cards can be read. On a phone that is one card (with its area's
+ * padding) across the width; on a desktop about half size.
+ */
+export function readableZoom(s: Pick<ViewSpace, 'width' | 'pad'>, narrow: boolean): number {
+  if (!narrow) return DESKTOP_READABLE_ZOOM;
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, (s.width - 2 * s.pad) / (BLOCK_W + 2 * AREA_PAD)));
+}
+
+interface SceneBox {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  isDeleted?: boolean;
+}
+
+/**
+ * Where the first view looks: the Product and Engineering areas of the first feature board (the
+ * leftmost frame, then the topmost). With no frames, the whole board.
+ */
+export function firstBoardBounds(els: readonly SceneBox[]): Bounds | null {
+  const live = els.filter((e) => !e.isDeleted);
+  const first = live.filter((e) => e.type === 'frame').sort((a, b) => a.x - b.x || a.y - b.y || a.id.localeCompare(b.id))[0];
+  if (!first) return contentBounds(live);
+  const top = live.filter((e) => e.id === `${first.id}~zone:product` || e.id === `${first.id}~zone:engineering`);
+  return contentBounds(top.length ? top : [first]);
+}
+
+/**
+ * The first view: the bounds across the width, from their top just under the bars, but never
+ * below `minZoom`. When they do not fit across at that zoom, they start at the left edge (Product
+ * whole, Engineering off to the right) instead of being centred.
+ */
+export function firstView(b: Bounds, s: ViewSpace, minZoom: number): Fit {
+  const w = Math.max(1, b.maxX - b.minX);
+  const availW = Math.max(1, s.width - 2 * s.pad);
+  const across = Math.min(MAX_ZOOM, availW / w);
+  const zoom = Math.max(Math.min(minZoom, MAX_ZOOM), across);
+  const scrollX = across >= zoom ? (s.width / zoom - w) / 2 - b.minX : s.pad / zoom - b.minX;
+  return { zoom, scrollX, scrollY: s.top / zoom - b.minY };
 }

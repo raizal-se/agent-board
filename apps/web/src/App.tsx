@@ -182,6 +182,9 @@ export function App({ conn }: { conn: BoardConnection }) {
               <button type="button" className="btn" onClick={addNoteInView} title="Add a note in the middle of the view">
                 + note
               </button>
+              <button type="button" className="btn" onClick={() => viewport?.fitAll()} title="Show the whole board">
+                Fit all
+              </button>
             </div>
             {!narrow && selectionBar}
           </div>

@@ -7,7 +7,7 @@ import { selectedIds, undoActivation, type ActivationState } from './activation'
 import { EMBED_SCHEME, FONT_HELVETICA, kindOf, roughMeasure, type El, type Measure } from './elements';
 import { BlockEmbed } from './embeds';
 import { barRoom, isNarrow } from './bars';
-import { contentBounds, fitTop, inView } from './fit';
+import { contentBounds, firstBoardBounds, firstView, fitTop, inView, readableZoom, type Fit } from './fit';
 import type { GestureState } from './scene';
 import { BoardSync } from './sync';
 
@@ -33,6 +33,8 @@ export interface Viewport {
   center(): { x: number; y: number };
   /** Select these elements (and nothing else), once they are on the canvas. */
   select(ids: string[]): void;
+  /** Show the whole board. */
+  fitAll(): void;
 }
 
 const INITIAL: ExcalidrawInitialDataState = {
@@ -72,17 +74,36 @@ const renderEmbeddable = (el: NonDeleted<ExcalidrawEmbeddableElement>) => {
 const BOARD_KINDS = new Set(['file', 'decision', 'snapshot', 'sticky']);
 
 
-/** Shows the whole board, from the top: on a phone it fills the width instead of sitting mid-screen. */
-function fitBoard(api: ExcalidrawImperativeAPI): void {
-  const b = contentBounds(api.getSceneElements());
-  if (!b) return;
-  const s = api.getAppState();
-  const room = barRoom(isNarrow());
-  const f = fitTop(b, { width: s.width, height: s.height, top: room.top, bottom: room.bottom, pad: 12 });
+function showView(api: ExcalidrawImperativeAPI, f: Fit): void {
   api.updateScene({
     appState: { scrollX: f.scrollX, scrollY: f.scrollY, zoom: { value: f.zoom as NormalizedZoomValue } },
     captureUpdate: CaptureUpdateAction.NEVER,
   });
+}
+
+const viewSpace = (api: ExcalidrawImperativeAPI) => {
+  const s = api.getAppState();
+  const narrow = isNarrow();
+  const room = barRoom(narrow);
+  return { narrow, space: { width: s.width, height: s.height, top: room.top, bottom: room.bottom, pad: 12 } };
+};
+
+/** Shows the whole board, from the top: on a phone it fills the width instead of sitting mid-screen. */
+function fitBoard(api: ExcalidrawImperativeAPI): void {
+  const b = contentBounds(api.getSceneElements());
+  if (!b) return;
+  showView(api, fitTop(b, viewSpace(api).space));
+}
+
+/**
+ * The first view: the first feature board's Product and Engineering areas, at a zoom where the
+ * cards can be read (on a phone, one card across). "Fit all" shows the rest.
+ */
+function openView(api: ExcalidrawImperativeAPI): void {
+  const b = firstBoardBounds(api.getSceneElements() as unknown as El[]);
+  if (!b) return;
+  const { narrow, space } = viewSpace(api);
+  showView(api, firstView(b, space, readableZoom(space, narrow)));
 }
 
 /**
@@ -129,24 +150,29 @@ export const BoardCanvas = memo(function BoardCanvas({
       api.onPointerUp(up),
       api.onChange((elements) => {
         sync.changed();
-        // Fit when the board first shows, and again if the scene was replaced (scroll reset with it).
+        // The first view when the board first shows, and again if the scene was replaced (scroll reset with it).
         const live = elements.some((e) => !e.isDeleted);
-        if (!live) fitted.current = false;
-        else if (!fitted.current) {
+        const board = (window as unknown as { __board?: { opened?: boolean } }).__board;
+        if (!live) {
+          fitted.current = false;
+          if (board) board.opened = false;
+        } else if (!fitted.current) {
           fitted.current = true;
-          fitBoard(api);
+          openView(api);
+          if (board) board.opened = true;
           onReady?.();
         }
       }),
     ];
     window.addEventListener('pointercancel', up);
     // For the end-to-end checks: the canvas draws on a <canvas>, so they read the scene here.
-    (window as unknown as { __board?: unknown }).__board = { api, sync };
+    (window as unknown as { __board?: unknown }).__board = { api, sync, opened: fitted.current };
     onViewport?.({
       center: () => {
         const s = api.getAppState();
         return { x: -s.scrollX + s.width / 2 / s.zoom.value, y: -s.scrollY + s.height / 2 / s.zoom.value };
       },
+      fitAll: () => fitBoard(api),
       select: (ids) => {
         // A new item reaches the canvas with the next merge: wait for it (a few frames at most).
         let frames = 0;

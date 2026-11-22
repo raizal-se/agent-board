@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contentBounds, fitTop, inView } from './fit';
+import { contentBounds, firstBoardBounds, firstView, fitTop, inView, readableZoom } from './fit';
 
 const screen = (b: { minX: number; minY: number; maxX: number; maxY: number }, f: { scrollX: number; scrollY: number; zoom: number }) => ({
   left: (b.minX + f.scrollX) * f.zoom,
@@ -60,5 +60,68 @@ describe('the first view', () => {
         { x: 9999, y: 9999, width: 1, height: 1, isDeleted: true },
       ]),
     ).toEqual({ minX: -5, minY: 20, maxX: 110, maxY: 310 });
+  });
+});
+
+describe('the first view opens on the first feature board, readable', () => {
+  // A frame at 3320 and one at 0: the first is the leftmost. Each has four areas.
+  const frame = (id: string, x: number) => [
+    { id, type: 'frame', x, y: 0, width: 2920, height: 2200 },
+    { id: `${id}~zone:product`, type: 'rectangle', x: x + 40, y: 40, width: 1404, height: 1000 },
+    { id: `${id}~zone:engineering`, type: 'rectangle', x: x + 1476, y: 40, width: 1404, height: 1000 },
+    { id: `${id}~zone:agreed`, type: 'rectangle', x: x + 40, y: 1072, width: 1404, height: 1000 },
+  ];
+  const els = [...frame('frame:ui', 3320), ...frame('frame:checkout', 0)];
+
+  it('takes the Product and Engineering areas of the leftmost frame', () => {
+    expect(firstBoardBounds(els)).toEqual({ minX: 40, minY: 40, maxX: 2880, maxY: 1040 });
+    expect(firstBoardBounds([...els, { id: 'frame:checkout~zone:engineering', type: 'rectangle', x: 0, y: 0, width: 1, height: 1, isDeleted: true }])).toEqual({
+      minX: 40,
+      minY: 40,
+      maxX: 2880,
+      maxY: 1040,
+    });
+    // No frames yet: whatever is on the board.
+    expect(firstBoardBounds([{ id: 'n', type: 'rectangle', x: 5, y: 6, width: 10, height: 10 }])).toEqual({ minX: 5, minY: 6, maxX: 15, maxY: 16 });
+    expect(firstBoardBounds([])).toBeNull();
+  });
+
+  it('on a desktop both areas show across at about half size, from the top under the bars', () => {
+    const b = firstBoardBounds(els)!;
+    const space = { width: 1440, height: 900, top: 152, pad: 12 };
+    const f = firstView(b, space, readableZoom(space, false));
+    expect(f.zoom).toBeGreaterThan(0.45);
+    const s = screen(b, f);
+    expect(s.left).toBeGreaterThanOrEqual(12 - 0.01);
+    expect(s.right).toBeLessThanOrEqual(1440 - 12 + 0.01);
+    expect(s.top).toBeCloseTo(152);
+  });
+
+  it('on a narrow desktop it does not shrink past readable: Product from its left edge, Engineering off to the right', () => {
+    const b = firstBoardBounds(els)!;
+    const space = { width: 1000, height: 800, top: 152, pad: 12 };
+    const f = firstView(b, space, readableZoom(space, false));
+    expect(f.zoom).toBeCloseTo(0.45);
+    const s = screen(b, f);
+    expect(s.left).toBeCloseTo(12);
+    expect(s.right).toBeGreaterThan(1000);
+  });
+
+  it('on a phone one card fills the width: the first card column of Product, its text readable', () => {
+    const b = firstBoardBounds(els)!;
+    const space = { width: 412, height: 915, top: 112, pad: 12, bottom: 120 };
+    const z = readableZoom(space, true);
+    // A 520 card and the area's padding on both sides fill the width.
+    expect(z).toBeCloseTo((412 - 24) / (520 + 64));
+    const f = firstView(b, space, z);
+    expect(f.zoom).toBeCloseTo(z);
+    const s = screen(b, f);
+    expect(s.left).toBeCloseTo(12);
+    expect(s.top).toBeCloseTo(112);
+  });
+
+  it('never past full size', () => {
+    const f = firstView({ minX: 0, minY: 0, maxX: 400, maxY: 300 }, { width: 1440, height: 900, top: 152, pad: 12 }, 0.45);
+    expect(f.zoom).toBe(1);
   });
 });
