@@ -16,6 +16,10 @@ import {
   isThread,
   itemsMap,
   layoutMap,
+  isMilestone,
+  isStory,
+  milestonesMap,
+  storiesMap,
   type Agreement,
   type CommentItem,
   type DecisionItem,
@@ -89,6 +93,8 @@ export function readBoard(doc: Y.Doc): Required<BoardState> {
     sides: new Map(sidesMap(doc).entries()),
     grids: new Map(gridsMap(doc).entries()),
     reviews: new Map(reviewsMap(doc).entries()),
+    milestones: [...milestonesMap(doc).values()].filter(isMilestone),
+    stories: [...storiesMap(doc).values()].filter(isStory),
   };
 }
 

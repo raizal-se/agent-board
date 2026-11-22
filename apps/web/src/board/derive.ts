@@ -1,3 +1,4 @@
+import { isMilestonePath, parseMilestoneFile } from '@agent-board/formats';
 import {
   AREA_PAD,
   AREA_TOP,
@@ -26,12 +27,22 @@ import {
   type Grid,
   type HumanEdge,
   type Layout,
+  type MilestoneItem,
   type Rect,
   type Review,
   type ReviewMark,
   type Side,
+  type Snapshot,
   type StickyItem,
+  type StoryFacts,
+  type StoryItem,
   type ThreadItem,
+  milestoneCount,
+  newEntries,
+  storiesOf,
+  storyFacts,
+  type CoverFact,
+  type StoryWorld,
 } from '@agent-board/model';
 
 export interface BoardState {
@@ -63,6 +74,8 @@ export interface BoardState {
   grids?: ReadonlyMap<string, Grid>;
   /** Rejects, by file item id. */
   reviews?: ReadonlyMap<string, Review>;
+  milestones?: MilestoneItem[];
+  stories?: StoryItem[];
 }
 
 /** The comment pin of an item: how many comments, and whether its thread is resolved. */
@@ -87,7 +100,48 @@ export type BlockData = {
   pin: Pin;
   /** The agent's colour: one per owner. */
   agentColor: string;
+  /** For a milestone file: what was imported from it, and how many entries are new since. */
+  milestoneFile?: MilestoneFileData;
 };
+export interface MilestoneFileData {
+  /** The milestone made from it, if it was imported. */
+  milestone: string | null;
+  /** Stories in that milestone now. */
+  stories: number;
+  /** Entries in the file with a title not imported yet. */
+  fresh: number;
+}
+/** One covered card in a story half: its facts, and the text to preview (the snapshot when agreed). */
+export interface CoverView extends CoverFact {
+  snapshot: Snapshot | null;
+  /** What the preview shows: the agreed snapshot, else the file as it is now. */
+  preview: { type: FileItem['type']; text: string } | null;
+}
+export type StoryData = {
+  story: StoryItem;
+  milestone: MilestoneItem;
+  facts: StoryFacts;
+  product: CoverView[];
+  engineering: CoverView[];
+  /** Covered cards that are gone. */
+  gone: CoverView[];
+  /** "Story N" of each open blocker. */
+  blockerNames: string[];
+  pin: Pin;
+};
+export type MilestoneData = {
+  milestone: MilestoneItem;
+  /** "4 stories · 2 approved · 1 can start" */
+  count: string;
+  stories: string[];
+  pin: Pin;
+};
+/** A "blocks" arrow: from the blocker to the story that waits on it. */
+export interface StoryEdge {
+  id: string;
+  from: string;
+  to: string;
+}
 export type StickyData = { sticky: StickyItem; pin: Pin };
 export type DecisionData = { decision: DecisionItem; covers: string[]; pin: Pin };
 /** The frozen copy of an agreed block, as a card in Agreed. */
@@ -136,7 +190,25 @@ export interface Views {
   edges: DrawnEdge[];
   /** Blocks of deleted files, for the "hidden blocks" list. */
   hidden: FileItem[];
+  milestones: Map<string, MilestoneData>;
+  stories: Map<string, StoryData>;
+  storyEdges: StoryEdge[];
+  /** Frames with no milestone yet: their Milestone area offers to start one, by frame id. */
+  noMilestone: Set<string>;
 }
+
+/** The id of the "start a milestone" card in a frame's empty Milestone area. */
+export const milestoneStartId = (frame: string) => `${frame}~milestone-start`;
+export const isMilestoneStartId = (id: string) => id.endsWith('~milestone-start');
+export const frameOfMilestoneStart = (id: string) => id.slice(0, -'~milestone-start'.length);
+/** The id of the "blocks" arrow from `blocker` to `story`. */
+export const storyEdgeId = (blocker: string, story: string) => `${blocker}~blocks~${story}`;
+/** Stories are named by number: "Story 3". */
+export const storyName = (s: Pick<StoryItem, 'number' | 'title'>, withTitle = true) => `Story ${s.number}${withTitle && s.title ? ` · ${s.title}` : ''}`;
+export const milestoneName = (m: Pick<MilestoneItem, 'number' | 'name'>) => `Milestone ${m.number}${m.name ? ` · ${m.name}` : ''}`;
+export const AREA_LABEL: Record<Area, string> = { product: 'Product', engineering: 'Engineering', agreed: 'Agreed', milestone: 'Milestone' };
+/** How the web agrees: one person's accept is enough (as for cards). */
+export const AGREE_MODE = 'solo' as const;
 
 export const ORIGIN: Layout = { x: 0, y: 0 };
 /** Where something in an area with no place yet shows: the first spot. */
@@ -207,6 +279,8 @@ export function views(state: BoardState): Views {
     sides,
     grids: state.grids ?? new Map<string, Grid>(),
     ownerSide,
+    milestones: (state.milestones ?? []).filter((m) => frameIds.has(m.frame)),
+    stories: (state.stories ?? []).filter((st) => frameIds.has(st.frame)),
   });
   const frames: FrameView[] = [...state.frames]
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -226,6 +300,23 @@ export function views(state: BoardState): Views {
     list.push(e.toPath);
     missingOf.set(e.from, list);
   }
+
+  // Milestones and stories.
+  const allMilestones = (state.milestones ?? []).filter((m) => frameIds.has(m.frame));
+  const allStories = (state.stories ?? []).filter((st) => frameIds.has(st.frame) && allMilestones.some((m) => m.id === st.milestone));
+  const storyById = new Map(allStories.map((st) => [st.id, st]));
+  const milestoneFileOf = (item: FileItem): { milestoneFile?: MilestoneFileData } => {
+    const parsed = parseMilestoneFile(item.path, item.text);
+    if (!parsed) return {};
+    const m = allMilestones.find((x) => x.source?.item === item.id);
+    return {
+      milestoneFile: {
+        milestone: m?.id ?? null,
+        stories: m ? allStories.filter((st) => st.milestone === m.id).length : 0,
+        fresh: m ? newEntries(m, parsed.entries).length : parsed.entries.length,
+      },
+    };
+  };
 
   const blocks = new Map<string, BlockData>();
   const snapshots = new Map<string, SnapshotData>();
@@ -248,6 +339,7 @@ export function views(state: BoardState): Views {
       mark: reviewMark(item, review),
       pin: pinOf(item.id),
       agentColor: agentColor(item.owner),
+      ...(isMilestonePath(item.path) ? milestoneFileOf(item) : {}),
     });
     if (agreement) {
       areaOf.set(snapId(item.id), 'agreed');
@@ -274,6 +366,46 @@ export function views(state: BoardState): Views {
   for (const e of state.edges) if (drawn(e.from) && drawn(e.to)) edges.push({ id: e.id, from: e.from, to: e.to!, label: e.label, kind: 'file' });
   for (const e of state.humanEdges ?? []) if (drawn(e.from) && drawn(e.to)) edges.push({ id: e.id, from: e.from, to: e.to, label: e.label, kind: 'human' });
 
+  const world: StoryWorld = {
+    files: new Map(state.items.map((i) => [i.id, i])),
+    agreements,
+    areaOf: (f) => resolveArea(f, ownerSide(f.owner), sides.get(f.id)).area,
+    stories: storyById,
+  };
+  const coverView = (c: CoverFact): CoverView => {
+    const snapshot = agreements.get(c.id)?.snapshot ?? null;
+    const preview = snapshot ? { type: snapshot.type, text: snapshot.text } : c.file && !c.file.gone ? { type: c.file.type, text: c.file.text } : null;
+    return { ...c, snapshot, preview };
+  };
+  const milestones = new Map<string, MilestoneData>();
+  for (const m of [...allMilestones].sort((a, b) => a.frame.localeCompare(b.frame) || a.number - b.number || a.id.localeCompare(b.id))) {
+    const list = storiesOf(allStories, m.id);
+    areaOf.set(m.id, 'milestone');
+    milestones.set(m.id, { milestone: m, count: milestoneCount(list, storyById, AGREE_MODE), stories: list.map((st) => st.id), pin: pinOf(m.id) });
+  }
+  const stories = new Map<string, StoryData>();
+  const storyEdges: StoryEdge[] = [];
+  for (const md of milestones.values()) {
+    for (const id of md.stories) {
+      const st = storyById.get(id)!;
+      const facts = storyFacts(st, world, AGREE_MODE);
+      const covers = facts.covers.map(coverView);
+      areaOf.set(id, 'milestone');
+      stories.set(id, {
+        story: st,
+        milestone: md.milestone,
+        facts,
+        product: covers.filter((c) => c.state !== 'gone' && c.area === 'product'),
+        engineering: covers.filter((c) => c.state !== 'gone' && c.area === 'engineering'),
+        gone: covers.filter((c) => c.state === 'gone'),
+        blockerNames: facts.blockers.map((b) => storyName(b, false)),
+        pin: pinOf(id),
+      });
+      for (const b of facts.blockers) storyEdges.push({ id: storyEdgeId(b.id, id), from: b.id, to: id });
+    }
+  }
+  const noMilestone = new Set(state.frames.filter((f) => !allMilestones.some((m) => m.frame === f.id)).map((f) => f.id));
+
   const hidden = state.items.filter((i) => i.gone).sort((a, b) => a.path.localeCompare(b.path));
-  return { frames, blocks, decisions: decisionData, snapshots, stickies: stickyData, areaOf, edges, hidden };
+  return { frames, blocks, decisions: decisionData, snapshots, stickies: stickyData, areaOf, edges, hidden, milestones, stories, storyEdges, noMilestone };
 }

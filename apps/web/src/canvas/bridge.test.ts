@@ -17,6 +17,10 @@ import {
   FRAME_PAD,
   frameSizeFor,
   MIN_GRID,
+  addMilestone,
+  addStory,
+  setBlockedBy,
+  storiesMap,
   type FileItem,
   type Layout,
 } from '@agent-board/model';
@@ -119,7 +123,7 @@ describe('doc to elements', () => {
     expect(canvas.get('fe:x->a/y.md#~label')).toMatchObject({ type: 'text', originalText: 'uses', containerId: 'fe:x->a/y.md#' });
   });
 
-  it('splits each frame 2×2 into four areas, big from the start, each with its label; Milestone has a hint', () => {
+  it('splits each frame 2×2 into four areas, big from the start, each with its label; an empty Milestone offers to start one', () => {
     const a = canvas.get('frame:a');
     const r = (z: string) => canvas.get(`frame:a~zone:${z}`);
     expect(r('product')).toMatchObject({ x: O, y: O, width: AREA_MIN_W });
@@ -133,7 +137,9 @@ describe('doc to elements', () => {
     for (const z of ['product', 'engineering', 'agreed', 'milestone']) {
       expect(canvas.get(`frame:a~zonelabel:${z}`)).toMatchObject({ type: 'text', originalText: z.toUpperCase(), locked: true });
     }
-    expect(canvas.get('frame:a~zonehint:milestone').originalText).toBe('Milestone planning comes later');
+    const start = canvas.get('frame:a~milestone-start');
+    expect(start).toMatchObject({ type: 'embeddable', locked: true, frameId: 'frame:a', link: 'agent-board:frame:a~milestone-start' });
+    expect(start.x).toBe(r('milestone').x + 32);
   });
 
   it('an area grows with what is in it, and the areas beside and below it move with it', () => {
@@ -510,5 +516,52 @@ describe('a drag during a file update', () => {
     vi.runAllTimers();
     expect(canvas.get(`${id}~text`)).toBe(typing);
     expect(itemsMap(doc).get(id)).toMatchObject({ text: 'a' });
+  });
+});
+
+describe('milestones and stories on the canvas', () => {
+  const story = () => {
+    const m = addMilestone(doc, { frame: 'frame:a', name: 'Pay', author: 'ana', now: 1 });
+    const s1 = addStory(doc, m, { title: 'One' }, { author: 'ana', now: 1 })!;
+    const s2 = addStory(doc, m, { title: 'Two' }, { author: 'ana', now: 1 })!;
+    vi.runAllTimers();
+    return { m, s1, s2 };
+  };
+
+  it('draws the milestone and its stories in the Milestone area; the start card goes', () => {
+    const { m, s1 } = story();
+    const zone = canvas.get('frame:a~zone:milestone');
+    expect(canvas.get(m)).toMatchObject({ type: 'embeddable', frameId: 'frame:a', customData: { ab: 'milestone', id: m, number: 1 } });
+    const el = canvas.get(s1);
+    const l = layoutOf(s1)!;
+    expect(el).toMatchObject({ type: 'embeddable', x: zone.x + l.x, y: zone.y + l.y, width: l.w, height: l.h });
+    expect(el.customData).toMatchObject({ ab: 'story', number: 1, canStart: true, approved: false });
+    expect(canvas.scene.find((e) => e.id === 'frame:a~milestone-start' && !e.isDeleted)).toBeUndefined();
+  });
+
+  it('draws a "blocks" arrow from the blocker to the story, with its label', () => {
+    const { s1, s2 } = story();
+    setBlockedBy(doc, s2, [s1]);
+    vi.runAllTimers();
+    const id = `${s1}~blocks~${s2}`;
+    expect(canvas.get(id)).toMatchObject({ type: 'arrow', locked: true, startBinding: { elementId: s1 }, endBinding: { elementId: s2 } });
+    expect(canvas.get(`${id}~label`)).toMatchObject({ type: 'text', originalText: 'blocks', containerId: id });
+    expect(canvas.get(s2).customData).toMatchObject({ canStart: false, blockedBy: [s1] });
+    expect(canvas.get(s1).boundElements).toEqual([{ id, type: 'arrow' }]);
+  });
+
+  it('a person moves a story: its place is kept relative to the area and is theirs; a delete is put back', () => {
+    const { s1 } = story();
+    const zone = canvas.get('frame:a~zone:milestone');
+    canvas.edit(s1, { x: zone.x + 600, y: zone.y + 900 });
+    sync.changed();
+    vi.runAllTimers();
+    expect(layoutOf(s1)).toMatchObject({ x: 600, y: 900 });
+    expect(layoutOf(s1)!.placedBy).toBeUndefined();
+    canvas.edit(s1, { isDeleted: true });
+    sync.changed();
+    vi.runAllTimers();
+    expect(storiesMap(doc).has(s1)).toBe(true);
+    expect(canvas.get(s1).isDeleted).toBe(false);
   });
 });

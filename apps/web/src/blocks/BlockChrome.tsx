@@ -70,7 +70,7 @@ export function CardBody({
  * agent work: it carries the agent mark and the owner's colour.
  */
 export function BlockChrome({ data, children }: { data: BlockData; children: ReactNode }) {
-  const { open, compare, agree, reject, switchArea } = useBoardActions();
+  const { open, compare, agree, reject, switchArea, importMilestone } = useBoardActions();
   const { item, missing, agreement, changed, area, pin, mark, review } = data;
   const { card, body, content, overflow } = useCardFit(item.id);
   const state = agreement ? 'agreed' : 'draft';
@@ -147,6 +147,22 @@ export function BlockChrome({ data, children }: { data: BlockData; children: Rea
               {mark}
               {review && mark === 'changes requested' ? `: ${review.reason}` : ''}
             </span>
+          )}
+        </div>
+      )}
+      {data.milestoneFile && (
+        <div className="milestone-file" data-testid="milestone-file">
+          {data.milestoneFile.milestone ? (
+            <span data-testid="milestone-imported">
+              imported · {data.milestoneFile.stories} {data.milestoneFile.stories === 1 ? 'story' : 'stories'}
+            </span>
+          ) : (
+            <span>milestone file, not imported yet</span>
+          )}
+          {data.milestoneFile.fresh > 0 && (
+            <button type="button" className="card-btn" data-testid="import-new" onClick={stop(() => importMilestone(item.id))}>
+              {data.milestoneFile.milestone ? `import new entries (${data.milestoneFile.fresh})` : 'import'}
+            </button>
           )}
         </div>
       )}

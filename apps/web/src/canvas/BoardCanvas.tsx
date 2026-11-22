@@ -4,7 +4,7 @@ import type { AppState, ExcalidrawImperativeAPI, ExcalidrawInitialDataState, Nor
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import type * as Y from 'yjs';
 import { selectedIds, undoActivation, type ActivationState } from './activation';
-import { EMBED_SCHEME, FONT_HELVETICA, kindOf, roughMeasure, type El, type Measure } from './elements';
+import { EMBED_KINDS, EMBED_SCHEME, FONT_HELVETICA, kindOf, roughMeasure, type El, type Measure } from './elements';
 import { BlockEmbed } from './embeds';
 import { barRoom, isNarrow } from './bars';
 import { contentBounds, firstBoardBounds, firstView, fitTop, inView, readableZoom, type Fit } from './fit';
@@ -68,10 +68,10 @@ const validateEmbeddable = (link: string) => link.startsWith(EMBED_SCHEME);
 
 const renderEmbeddable = (el: NonDeleted<ExcalidrawEmbeddableElement>) => {
   const kind = kindOf(el as unknown as El);
-  return kind === 'file' || kind === 'decision' || kind === 'snapshot' ? <BlockEmbed id={el.id} /> : null;
+  return kind && EMBED_KINDS.has(kind) ? <BlockEmbed id={el.id} /> : null;
 };
 
-const BOARD_KINDS = new Set(['file', 'decision', 'snapshot', 'sticky']);
+const BOARD_KINDS = new Set(['file', 'decision', 'snapshot', 'sticky', 'story', 'milestone']);
 
 
 function showView(api: ExcalidrawImperativeAPI, f: Fit): void {

@@ -1,5 +1,5 @@
-import { AREAS, snapItemOf, type Area, type CanvasShape, type Layout } from '@agent-board/model';
-import { AREA_START, cardSize, sizeIn, type BoardState, type FrameView, type Views } from '../board/derive';
+import { AREAS, MILESTONE_H, MILESTONE_W, snapItemOf, STORY_H, STORY_W, type Area, type CanvasShape, type Layout } from '@agent-board/model';
+import { AREA_START, cardSize, milestoneStartId, sizeIn, type BoardState, type FrameView, type Views } from '../board/derive';
 import {
   arrowEl,
   arrowGeometry,
@@ -38,7 +38,6 @@ export const AREA_INK: Record<Area, string> = {
   agreed: '#14532D',
   milestone: '#4C1D95',
 };
-export const MILESTONE_HINT = 'Milestone planning comes later';
 const SNAP_LINK = '#86a98f';
 export const STICKY_BG = '#fff3a8';
 const STICKY_STROKE = '#e3cd5b';
@@ -48,10 +47,14 @@ const STICKY_FONT = 16;
 const LABEL_FONT = 14;
 /** Area labels: small next to the cards, readable when the whole board is in view. */
 const ZONE_FONT = 20;
-const HINT_FONT = 18;
+/** The "blocks" arrows between stories. */
+const STORY_EDGE = '#6D28D9';
+export const BLOCKS_LABEL = 'blocks';
+/** The "start a milestone" card in an empty Milestone area. */
+export const MILESTONE_START_H = 170;
 
 /** Doc-owned kinds that are bound text in a container. */
-const BOUND_TEXT_KINDS = new Set<Kind>(['sticky-text', 'file-edge-label', 'link-label']);
+const BOUND_TEXT_KINDS = new Set<Kind>(['sticky-text', 'file-edge-label', 'link-label', 'story-edge-label']);
 
 /** The id of the live text bound to `containerId`, if the canvas has one. */
 function boundTextId(local: ReadonlyMap<string, El>, containerId: string): string | undefined {
@@ -97,6 +100,12 @@ export function docElements(
       labelIds.set(e.id, labelId);
       bind(e.id, { id: labelId, type: 'text' });
     }
+  }
+  // "blocks" arrows between stories.
+  for (const e of v.storyEdges) {
+    bind(e.from, { id: e.id, type: 'arrow' });
+    bind(e.to, { id: e.id, type: 'arrow' });
+    bind(e.id, { id: `${e.id}~label`, type: 'text' });
   }
   // A thin line from each snapshot card to its live block.
   const snapLinks: { id: string; from: string; to: string }[] = [];
@@ -196,22 +205,24 @@ export function docElements(
           customData: { zone: z, frame: fid },
         }),
       );
-      if (z === 'milestone') {
-        const hint = textEl(`${fid}~zonehint:${z}`, 'zone-label', {
-          text: MILESTONE_HINT,
-          x: 0,
-          y: 0,
-          fontSize: HINT_FONT,
-          measure,
-          color: MUTED,
+    }
+    if (v.noMilestone.has(fid)) {
+      const id = milestoneStartId(fid);
+      const r = rects.milestone;
+      out.push(
+        base(id, 'embeddable', 'milestone-start', {
+          x: fv.x + r.x + AREA_START.x,
+          y: fv.y + r.y + AREA_START.y,
+          width: MILESTONE_W,
+          height: MILESTONE_START_H,
+          strokeColor: 'transparent',
+          backgroundColor: 'transparent',
+          link: embedded.has(id) ? null : embedLink(id),
           locked: true,
           frameId: fid,
-          customData: { zone: z, frame: fid, hint: true },
-        });
-        hint.x = fv.x + r.x + (r.w - hint.width) / 2;
-        hint.y = fv.y + r.y + (r.h - hint.height) / 2;
-        out.push(hint);
-      }
+          customData: { ab: 'milestone-start', id, frame: fid },
+        }),
+      );
     }
     for (const [id, b] of v.blocks) {
       if (b.item.frame !== fid) continue;
@@ -283,6 +294,54 @@ export function docElements(
         }),
       );
     }
+    for (const [id, m] of v.milestones) {
+      if (m.milestone.frame !== fid) continue;
+      const l = state.layout.get(id);
+      const p = inArea(id, l);
+      const size = { w: l?.w ?? MILESTONE_W, h: l?.h ?? MILESTONE_H };
+      boxes.set(id, { ...p, ...size });
+      out.push(
+        base(id, 'embeddable', 'milestone', {
+          ...p,
+          width: size.w,
+          height: size.h,
+          strokeColor: BLOCK_STROKE,
+          backgroundColor: '#ffffff',
+          link: embedded.has(id) ? null : embedLink(id),
+          frameId: fid,
+          boundElements: refs(id),
+          customData: { ab: 'milestone', id, number: m.milestone.number, count: m.count },
+        }),
+      );
+    }
+    for (const [id, st] of v.stories) {
+      if (st.story.frame !== fid) continue;
+      const l = state.layout.get(id);
+      const p = inArea(id, l);
+      const size = { w: l?.w ?? STORY_W, h: l?.h ?? STORY_H };
+      boxes.set(id, { ...p, ...size });
+      out.push(
+        base(id, 'embeddable', 'story', {
+          ...p,
+          width: size.w,
+          height: size.h,
+          strokeColor: BLOCK_STROKE,
+          backgroundColor: '#ffffff',
+          link: embedded.has(id) ? null : embedLink(id),
+          frameId: fid,
+          boundElements: refs(id),
+          customData: {
+            ab: 'story',
+            id,
+            milestone: st.story.milestone,
+            number: st.story.number,
+            approved: st.facts.approved,
+            canStart: st.facts.canStart,
+            blockedBy: st.facts.blockers.map((b) => b.id),
+          },
+        }),
+      );
+    }
     out.push(...stickyEls(fid));
     out.push(
       base(fid, 'frame', 'frame', {
@@ -307,6 +366,32 @@ export function docElements(
   }
 
   const labels: El[] = [];
+  for (const e of v.storyEdges) {
+    const a = boxes.get(e.from);
+    const b = boxes.get(e.to);
+    if (!a || !b) continue;
+    const arrow = arrowEl(e.id, 'story-edge', { from: e.from, to: e.to, a, b, locked: true, customData: { id: e.id, from: e.from, to: e.to } });
+    arrow.strokeColor = STORY_EDGE;
+    arrow.boundElements = refs(e.id);
+    out.push(arrow);
+    const mid = arrowMiddle(arrow);
+    const t = textEl(`${e.id}~label`, 'story-edge-label', {
+      text: BLOCKS_LABEL,
+      x: 0,
+      y: 0,
+      fontSize: LABEL_FONT,
+      measure,
+      containerId: e.id,
+      color: STORY_EDGE,
+      locked: true,
+      align: 'center',
+      verticalAlign: 'middle',
+      customData: { id: e.id },
+    });
+    t.x = mid.x - t.width / 2;
+    t.y = mid.y - t.height / 2;
+    labels.push(t);
+  }
   for (const e of v.edges) {
     const a = boxes.get(e.from);
     const b = boxes.get(e.to);
@@ -408,7 +493,7 @@ const sortedIds = (refs: readonly BoundRef[] | null | undefined) =>
 const bindingId = (b: unknown) => (b && typeof b === 'object' ? ((b as { elementId?: string }).elementId ?? null) : null);
 
 /** Labels bound to an arrow: the bridge keeps them at the arrow's middle (Excalidraw does not move them when it is given a new arrow). */
-const ARROW_LABEL_KINDS = new Set<Kind>(['file-edge-label', 'link-label']);
+const ARROW_LABEL_KINDS = new Set<Kind>(['file-edge-label', 'link-label', 'story-edge-label']);
 
 /**
  * Whether the canvas element already shows what the doc wants. Text size is left out: the canvas
