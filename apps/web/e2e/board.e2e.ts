@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { renameSync } from 'node:fs';
 import { join } from 'node:path';
-import { block, boundText, byPath, clickEl, fitAll, guardPage, idOf, ofKind, openBoard, placeOf, pressPoint, scene, screenBox, type SceneEl } from './canvas';
+import { areaEl, areaOfPath, block, boundText, byPath, clickEl, exported, fitAll, guardPage, idOf, ofKind, openBoard, placeOf, pressPoint, scene, screenBox, type SceneEl } from './canvas';
 import { startCli, type RunningCli } from './cli';
 
 const FLOW = `---
@@ -62,15 +62,113 @@ test('each subfolder is a frame, root files go to the folder frame; blocks show 
   await expect.poll(async () => ofKind(await scene(page), 'file').map((e) => e.link)).toEqual(Array(5).fill(null));
 });
 
-test('empty zones are thin strips; the zones in use are full columns', async ({ page }) => {
+test('each frame is one board of four areas: Product, Engineering, Agreed and Milestone', async ({ page }) => {
   await open(page);
   const els = await scene(page);
-  const zone = (frame: string, z: string) => els.find((e) => e.ab?.ab === 'zone' && e.ab.zone === z && els.find((f) => f.id === e.frameId)?.name === frame)!;
-  // Every block starts in the product zone.
-  expect(zone('checkout', 'product').width).toBeGreaterThan(300);
-  for (const z of ['engineering', 'agreed', 'milestone']) expect(zone('checkout', z).width).toBeLessThan(40);
-  const label = els.find((e) => e.ab?.ab === 'zone-label' && e.ab.zone === 'milestone' && e.frameId === zone('checkout', 'milestone').frameId)!;
-  expect(label.angle).toBeCloseTo((3 * Math.PI) / 2);
+  const r = (z: string) => areaEl(els, 'checkout', z)!;
+  for (const z of ['product', 'engineering', 'agreed', 'milestone']) {
+    // Big from the start, room for more than two cards across.
+    expect(r(z).width).toBeGreaterThan(1200);
+    expect(r(z).height).toBeGreaterThan(900);
+    const label = els.find((e) => e.id === `${r(z).frameId}~zonelabel:${z}`);
+    expect(label?.text).toBe(z.toUpperCase());
+  }
+  // Product top left, Engineering top right, Agreed bottom left, Milestone bottom right.
+  expect(r('engineering').x).toBeGreaterThan(r('product').x + r('product').width);
+  expect(r('engineering').y).toBe(r('product').y);
+  expect(r('agreed').x).toBe(r('product').x);
+  expect(r('agreed').y).toBeGreaterThan(r('product').y + r('product').height);
+  expect(r('milestone').x).toBe(r('engineering').x);
+  expect(r('milestone').y).toBe(r('agreed').y);
+  expect(els.find((e) => e.id === `${r('milestone').frameId}~zonehint:milestone`)?.text).toBe('Milestone planning comes later');
+  // The owner works on the product side: every file without an area is in Product.
+  for (const p of ['checkout/flow.md', 'checkout/api.md', 'checkout/later.md']) expect(areaOfPath(els, p)).toBe('product');
+  await expect(block(page, 'checkout/api.md')).toHaveAttribute('data-area', 'product');
+  // Frames do not overlap, with room between them.
+  const frames = els.filter((e) => e.type === 'frame');
+  for (const a of frames) {
+    for (const b of frames) {
+      if (a === b) continue;
+      const apart = a.x + a.width + 200 <= b.x || b.x + b.width + 200 <= a.x || a.y + a.height + 200 <= b.y || b.y + b.height + 200 <= a.y;
+      expect(apart, `${a.name} and ${b.name} apart`).toBe(true);
+    }
+  }
+});
+
+test('a new file lands in its area once; saving it does not move it; a new area value moves it', async ({ page }) => {
+  await open(page);
+  cli!.write('checkout/jobs.md', '---\narea: engineering\n---\n# Jobs\n\nretry queue\n');
+  await expect.poll(async () => areaOfPath(await scene(page), 'checkout/jobs.md'), { timeout: 3000 }).toBe('engineering');
+  const placed = await placeOf(page, 'checkout/jobs.md');
+  await fitAll(page);
+  await expect(block(page, 'checkout/jobs.md')).toHaveAttribute('data-area-source', 'file');
+  // An HTML page says its area with a meta tag.
+  cli!.write('ui/eng.html', '<!doctype html><meta name="board:area" content="engineering"><h1>Queue</h1>');
+  await expect.poll(async () => areaOfPath(await scene(page), 'ui/eng.html'), { timeout: 3000 }).toBe('engineering');
+
+  // Saves, even ones that change the size of the content, leave it where it is.
+  for (let i = 0; i < 3; i++) {
+    cli!.write('checkout/jobs.md', `---\narea: engineering\n---\n# Jobs\n\nretry queue ${i}\n${'more\n\n'.repeat(i * 5)}`);
+    await expect(block(page, 'checkout/jobs.md')).toContainText(`retry queue ${i}`, { timeout: 3000 });
+  }
+  await page.waitForTimeout(300);
+  expect(await placeOf(page, 'checkout/jobs.md')).toEqual(placed);
+
+  // The last statement wins: the file now says product.
+  cli!.write('checkout/jobs.md', '---\narea: product\n---\n# Jobs\n\nretry queue\n');
+  await expect.poll(async () => areaOfPath(await scene(page), 'checkout/jobs.md'), { timeout: 3000 }).toBe('product');
+  await expect.poll(() => exported(cli!)?.items.find((i) => i.path === 'checkout/jobs.md')?.area, { timeout: 3000 }).toBe('product');
+  expect(exported(cli!)!.items.find((i) => i.path === 'checkout/jobs.md')!.area_source).toBe('file');
+});
+
+test('the switch on a card moves it to the other area, and says who moved it', async ({ page }) => {
+  await open(page);
+  const api = block(page, 'checkout/api.md');
+  const sw = api.getByTestId('area-switch');
+  await expect(sw.getByRole('button', { name: 'Product' })).toHaveAttribute('aria-pressed', 'true');
+  await sw.getByRole('button', { name: 'Engineering' }).click();
+  await expect(api).toHaveAttribute('data-area', 'engineering');
+  await expect(api).toHaveAttribute('data-area-source', 'human');
+  await expect.poll(async () => areaOfPath(await scene(page), 'checkout/api.md')).toBe('engineering');
+  await expect
+    .poll(() => {
+      const i = exported(cli!)?.items.find((x) => x.path === 'checkout/api.md');
+      return i && [i.area, i.area_source, i.area_set_by];
+    }, { timeout: 3000 })
+    .toEqual(['engineering', 'human', 'e2e']);
+  // A save that does not touch the area keeps the person's switch.
+  const placed = await placeOf(page, 'checkout/api.md');
+  cli!.write('checkout/api.md', '# Payment API\n\nPOST /pay\nPOST /refund\n');
+  await expect(api).toContainText('POST /refund', { timeout: 3000 });
+  await page.waitForTimeout(300);
+  expect(await placeOf(page, 'checkout/api.md')).toEqual(placed);
+  await expect(api).toHaveAttribute('data-area', 'engineering');
+});
+
+test('a card grows to its content; past the cap it scrolls inside, with a fade and open', async ({ page }) => {
+  await open(page);
+  const lines = (n: number, tag: string) => Array.from({ length: n }, (_, i) => `${tag} line ${i + 1}`).join('\n\n');
+  cli!.write('checkout/medium.md', `# Medium\n\n${lines(30, 'medium')}\n\nmedium-end\n`);
+  cli!.write('checkout/long.md', `# Long\n\n${lines(200, 'long')}\n\nlong-end\n`);
+  await expect.poll(() => placeOf(page, 'checkout/long.md'), { timeout: 3000 }).not.toBeNull();
+  await fitAll(page);
+  const height = async (path: string) => byPath(await scene(page), path)?.height ?? 0;
+
+  // All of a medium file shows: the card is taller than the default and nothing scrolls.
+  const medium = block(page, 'checkout/medium.md');
+  await expect(medium).toContainText('medium-end');
+  await expect.poll(() => height('checkout/medium.md'), { timeout: 5000 }).toBeGreaterThan(600);
+  await expect(medium.getByTestId('card-fade')).toHaveCount(0);
+  await expect
+    .poll(() => medium.locator('.card-body').evaluate((b) => b.scrollHeight - b.clientHeight))
+    .toBeLessThanOrEqual(4);
+
+  // A long one stops at the cap and scrolls, with a fade and an open button.
+  const long = block(page, 'checkout/long.md');
+  await expect.poll(() => height('checkout/long.md'), { timeout: 5000 }).toBe(1400);
+  await expect(long.getByTestId('card-fade')).toBeVisible();
+  await long.getByRole('button', { name: 'open all of checkout/long.md' }).click();
+  await expect(page.getByTestId('fullview')).toContainText('long-end');
 });
 
 test('a mermaid fence renders as a diagram, a broken one shows the error', async ({ page }) => {
@@ -155,8 +253,8 @@ test('an HTML thumbnail zooms to the page content', async ({ page }) => {
   await open(page);
   const thumb = block(page, 'ui/card-form.html').locator('.html-thumb');
   await expect(thumb).toHaveAttribute('data-loaded', 'yes');
-  // The fixture's content is about half the 1280 px page wide, so it zooms well past 338/1280.
-  await expect.poll(async () => Number(await thumb.getAttribute('data-scale')), { timeout: 5000 }).toBeGreaterThan(0.4);
+  // Never below 0.6 of the page; the fixture's content is narrower than the page, so it zooms past that.
+  await expect.poll(async () => Number(await thumb.getAttribute('data-scale')), { timeout: 5000 }).toBeGreaterThan(0.6);
 });
 
 test('an HTML thumbnail loads sandboxed, takes no clicks, and opens full size', async ({ page }) => {

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { block, boundText, clickEl, exported, fitAll, guardPage, idOf, ofKind, openBoard, scene, screenBox, selectPaths, type SceneEl } from './canvas';
+import { areaEl, areaOfPath, block, boundText, centreIn, clickEl, exported, fitAll, guardPage, idOf, ofKind, openBoard, scene, screenBox, selectPaths, snapshotCard, type SceneEl } from './canvas';
 import { startCli, type RunningCli } from './cli';
 
 /** Slice 2 on the canvas: think on the board (notes, comments, links), agree on what is done. */
@@ -37,13 +37,10 @@ async function typeInNote(page: Page, id: string, text: string) {
   await expect(editor).toHaveCount(0);
 }
 
-async function agreeOn(page: Page, text: string, ...paths: string[]) {
-  await selectPaths(page, ...paths);
-  await page.getByTestId('selection-bar').getByRole('button', { name: 'Agree' }).click();
-  const dialog = page.getByTestId('text-dialog');
-  await dialog.locator('textarea').fill(text);
-  await dialog.getByRole('button', { name: 'Agree' }).click();
-  await expect(dialog).toHaveCount(0);
+/** ✓ Agree on the card: one click, no dialog. */
+async function agreeOn(page: Page, path: string) {
+  await block(page, path).getByTestId('agree').click();
+  await expect(block(page, path).getByTestId('agreed-badge')).toBeVisible();
 }
 
 async function linkPaths(page: Page, label: string, from: string, to: string) {
@@ -155,37 +152,84 @@ test('draw a link with a label between two blocks, edit the label, delete it', a
   await expect.poll(() => exp()?.edges.some((e) => e.source === 'human'), { timeout: 3000 }).toBe(false);
 });
 
-test('agree on two blocks: a decision, agreed badges, the agreed zone', async ({ page }) => {
+test('✓ Agree on the card: one click, a snapshot card in Agreed joined to the block, an entry in the thread', async ({ page }) => {
   await open(page);
-  for (const p of ['checkout/api.md', 'checkout/flow.md']) {
-    await expect(block(page, p)).toHaveAttribute('data-zone', 'product');
-    await expect(block(page, p).getByTestId('agent-mark')).toContainText("e2e's agent");
-  }
-  await agreeOn(page, 'Intent first, then capture', 'checkout/api.md', 'checkout/flow.md');
+  const api = block(page, 'checkout/api.md');
+  await expect(api).toHaveAttribute('data-area', 'product');
+  await expect(api.getByTestId('agent-mark')).toContainText("e2e's agent");
+  await api.getByTestId('agree').click();
+  await expect(page.getByTestId('text-dialog')).toHaveCount(0);
+  await expect(api.getByTestId('agreed-badge')).toBeVisible();
+  await expect(api.getByTestId('agree')).toHaveText('✓ Agreed');
+  await expect(api.getByTestId('agree')).toBeDisabled();
+  // The block stays in its area; its frozen copy is in Agreed.
+  await expect(api).toHaveAttribute('data-area', 'product');
   await fitAll(page);
+  const snap = snapshotCard(page, 'checkout/api.md');
+  await expect(snap).toBeVisible();
+  await expect(snap).toContainText('snapshot of api.md');
+  await expect(snap).toContainText('returns 201');
+  await expect(snap.getByTestId('snapshot-by')).toContainText('e2e');
+  const els = await scene(page);
+  const snapEl = els.find((e) => e.ab?.ab === 'snapshot' && e.ab.path === 'checkout/api.md');
+  expect(centreIn(snapEl, areaEl(els, 'checkout', 'agreed')), 'the snapshot card is in Agreed').toBe(true);
+  expect(areaOfPath(els, 'checkout/api.md')).toBe('product');
+  // A dashed line joins the snapshot card to the live block.
+  const link = els.find((e) => e.id === `${snapEl!.id}~link`)!;
+  expect(link.strokeStyle).toBe('dashed');
+  expect(link.end).toBe(await idOf(page, 'checkout/api.md'));
 
-  for (const p of ['checkout/api.md', 'checkout/flow.md']) {
-    await expect(block(page, p).getByTestId('agreed-badge')).toBeVisible();
-    await expect(block(page, p)).toHaveAttribute('data-zone', 'agreed');
-  }
-  const decision = page.getByTestId('decision');
-  await expect(decision).toContainText('Intent first, then capture');
-  await expect(decision).toContainText('checkout/api.md');
-  await expect(decision).toContainText('e2e');
-  // A decision is made by a person: no agent mark.
-  await expect(decision.getByTestId('agent-mark')).toHaveCount(0);
-  await expect.poll(() => exp()?.decisions[0]?.covers.length, { timeout: 3000 }).toBe(2);
-  // The agreed zone is a full column now that it holds blocks.
-  const zone = (await scene(page)).find((e) => e.ab?.ab === 'zone' && e.ab.zone === 'agreed')!;
-  expect(zone.width).toBeGreaterThan(300);
+  // The agreement is an entry in the block's thread, and in board.json.
+  await api.getByTestId('comment-pin').click();
+  await expect(page.getByTestId('thread').getByTestId('comment')).toContainText('✓ e2e agreed');
+  await expect
+    .poll(() => exp()?.comments.find((c) => c.target === exp()!.items.find((i) => i.path === 'checkout/api.md')!.id)?.comments[0]?.verdict, { timeout: 3000 })
+    .toBe('agree');
+  expect(exp()!.items.find((i) => i.path === 'checkout/api.md')!.snapshot!.content).toBe(API_V1);
+});
+
+test('✗ Reject needs a reason; the mark says changes requested, then updated after a save', async ({ page }) => {
+  await open(page);
+  const flow = block(page, 'checkout/flow.md');
+  await flow.getByTestId('reject').click();
+  const dialog = page.getByTestId('text-dialog');
+  await expect(dialog).toContainText('Reject checkout/flow.md');
+  const submit = dialog.getByRole('button', { name: 'Reject' });
+  await expect(submit, 'no reason, no reject').toBeDisabled();
+  await dialog.locator('textarea').fill('   ');
+  await expect(submit).toBeDisabled();
+  await dialog.locator('textarea').fill('Say what happens when the card is declined');
+  await submit.click();
+  await expect(dialog).toHaveCount(0);
+
+  await expect(flow).toHaveAttribute('data-mark', 'changes requested');
+  await expect(flow.getByTestId('review-mark')).toContainText('changes requested: Say what happens when the card is declined');
+  await expect.poll(() => exp()?.items.find((i) => i.path === 'checkout/flow.md')?.review, { timeout: 3000 }).toMatchObject({
+    state: 'changes requested',
+    by: 'e2e',
+    reason: 'Say what happens when the card is declined',
+  });
+  await flow.getByTestId('comment-pin').click();
+  await expect(page.getByTestId('thread').getByTestId('comment')).toContainText('✗ e2e rejected: Say what happens when the card is declined');
+  await page.getByTestId('thread').getByRole('button', { name: 'Close comments' }).click();
+
+  // The agent saves the file: the card asks for another look.
+  cli!.write('checkout/flow.md', '# Checkout flow\n\nCard form, then pay. A declined card shows the reason.\n');
+  await expect(flow).toHaveAttribute('data-mark', 'updated, review again', { timeout: 3000 });
+  await expect(flow.getByTestId('review-mark')).toHaveText('updated, review again');
+  await expect.poll(() => exp()?.items.find((i) => i.path === 'checkout/flow.md')?.review?.state, { timeout: 3000 }).toBe('updated, review again');
+  // Agreeing ends the review.
+  await agreeOn(page, 'checkout/flow.md');
+  await expect(flow).toHaveAttribute('data-mark', 'none');
 });
 
 test('a save after agreement: the mark within 1 s, compare shows the changed line, keep snapshot and agree again', async ({ page }) => {
   await open(page);
-  await agreeOn(page, 'Intent first', 'checkout/api.md');
+  await agreeOn(page, 'checkout/api.md');
   await fitAll(page);
   const api = block(page, 'checkout/api.md');
-  await expect(api.getByTestId('agreed-badge')).toBeVisible();
+  const snap = snapshotCard(page, 'checkout/api.md');
+  await expect(snap).toHaveAttribute('data-changed', 'no');
 
   const start = Date.now();
   cli!.write('checkout/api.md', API_V1.replace('returns 201', 'returns 202'));
@@ -193,8 +237,12 @@ test('a save after agreement: the mark within 1 s, compare shows the changed lin
   const ms = Date.now() - start;
   console.log(`save to "changed after agreement": ${ms} ms`);
   expect(ms).toBeLessThan(1000);
-  // The block shows the new content; the snapshot does not change.
+  // The block shows the new content; the snapshot card keeps the agreed one, and says it too.
   await expect(api).toContainText('returns 202');
+  await expect(api.getByTestId('agree')).toHaveText('✓ Agree');
+  await expect(snap.getByTestId('changed-mark')).toBeVisible();
+  await expect(snap).toContainText('returns 201');
+  await expect(snap).not.toContainText('returns 202');
   await expect.poll(() => exp()?.items.find((i) => i.path === 'checkout/api.md')?.changed_after_agreement, { timeout: 3000 }).toBe(true);
   expect(exp()!.items.find((i) => i.path === 'checkout/api.md')!.snapshot!.content).toBe(API_V1);
 
@@ -210,22 +258,25 @@ test('a save after agreement: the mark within 1 s, compare shows the changed lin
   // Keep snapshot: the mark goes, the snapshot stays.
   await compare.getByRole('button', { name: 'Keep snapshot' }).click();
   await expect(api.getByTestId('changed-mark')).toHaveCount(0);
+  await expect(snap.getByTestId('changed-mark')).toHaveCount(0);
   await expect.poll(() => exp()?.items.find((i) => i.path === 'checkout/api.md')?.changed_after_agreement, { timeout: 3000 }).toBe(false);
   expect(exp()!.items.find((i) => i.path === 'checkout/api.md')!.snapshot!.content).toBe(API_V1);
 
-  // The next change marks it again; agree again (from the selection bar's Compare) takes a new snapshot.
+  // The next change marks it again; agree again (from the snapshot card's Compare) takes a new snapshot.
   const v3 = API_V1.replace('returns 201', 'returns 200');
   cli!.write('checkout/api.md', v3);
   await expect(api.getByTestId('changed-mark')).toBeVisible({ timeout: 3000 });
-  await selectPaths(page, 'checkout/api.md');
-  await page.getByTestId('selection-bar').getByRole('button', { name: 'Compare' }).click();
+  await snap.getByTestId('changed-mark').getByRole('button', { name: 'Compare' }).click();
   await compare.getByRole('button', { name: 'Agree again' }).click();
   await expect(api.getByTestId('changed-mark')).toHaveCount(0);
   await expect(api.getByTestId('agreed-badge')).toBeVisible();
+  // Still one snapshot card, now showing what was agreed this time.
+  await expect(snapshotCard(page, 'checkout/api.md')).toHaveCount(1);
+  await expect(snap).toContainText('returns 200');
   await expect.poll(() => exp()?.items.find((i) => i.path === 'checkout/api.md')?.snapshot?.content, { timeout: 3000 }).toBe(v3);
 });
 
-test('notes, comments, links, decisions and the changed mark survive a reload and a CLI restart', async ({ page }) => {
+test('notes, comments, links, the snapshot card and the changed mark survive a reload and a CLI restart', async ({ page }) => {
   await open(page);
   await page.getByRole('button', { name: '+ note' }).click();
   await expect.poll(async () => (await notes(page)).length).toBe(1);
@@ -238,7 +289,7 @@ test('notes, comments, links, decisions and the changed mark survive a reload an
   await page.getByTestId('thread').getByRole('button', { name: 'Comment', exact: true }).click();
   await page.getByTestId('thread').getByRole('button', { name: 'Close comments' }).click();
   await linkPaths(page, 'calls', 'checkout/flow.md', 'checkout/api.md');
-  await agreeOn(page, 'Ship it', 'checkout/api.md');
+  await agreeOn(page, 'checkout/api.md');
   await fitAll(page);
   cli!.write('checkout/api.md', API_V1 + '\nGET /intents/:id\n');
   await expect(block(page, 'checkout/api.md').getByTestId('changed-mark')).toBeVisible({ timeout: 3000 });
@@ -252,7 +303,8 @@ test('notes, comments, links, decisions and the changed mark survive a reload an
       const link = drawnLink(els);
       return link ? boundText(els, link.id) : null;
     }).toBe('calls');
-    await expect(page.getByTestId('decision')).toContainText('Ship it');
+    await expect(snapshotCard(page, 'checkout/api.md')).toContainText('returns 201');
+    await expect(snapshotCard(page, 'checkout/api.md').getByTestId('changed-mark')).toBeVisible();
     await expect(block(page, 'checkout/api.md').getByTestId('agreed-badge')).toBeVisible();
     await expect(block(page, 'checkout/api.md').getByTestId('changed-mark')).toBeVisible();
   };

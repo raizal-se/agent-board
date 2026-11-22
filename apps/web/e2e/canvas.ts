@@ -61,6 +61,23 @@ export async function scene(page: Page): Promise<SceneEl[]> {
 }
 
 export const ofKind = (els: SceneEl[], kind: string) => els.filter((e) => e.ab?.ab === kind);
+/** One of the four areas of a frame (by the frame's name). */
+export const areaEl = (els: SceneEl[], frame: string, area: string) => {
+  const f = els.find((e) => e.type === 'frame' && e.name === frame);
+  return els.find((e) => e.ab?.ab === 'zone' && e.ab.zone === area && !!f && e.frameId === f.id);
+};
+/** Whether an element's centre is inside a box: which area a card is in. */
+export const centreIn = (el: SceneEl | undefined, r: SceneEl | undefined) =>
+  !!el && !!r && el.x + el.width / 2 >= r.x && el.x + el.width / 2 <= r.x + r.width && el.y + el.height / 2 >= r.y && el.y + el.height / 2 <= r.y + r.height;
+/** The area of a frame a file's card is in, by its place on the canvas, or null. */
+export function areaOfPath(els: SceneEl[], path: string): string | null {
+  const el = byPath(els, path);
+  const frame = els.find((f) => f.id === el?.frameId)?.name;
+  if (!el || !frame) return null;
+  return ['product', 'engineering', 'agreed', 'milestone'].find((a) => centreIn(el, areaEl(els, frame, a))) ?? null;
+}
+/** A snapshot card on the page, by the path of its file. */
+export const snapshotCard = (page: Page, path: string) => page.locator(`[data-testid="snapshot-card"][data-path="${path}"]`);
 export const byPath = (els: SceneEl[], path: string) => els.find((e) => e.ab?.ab === 'file' && e.ab.path === path);
 /** The text bound to a container (a note's text, a link's label). */
 export const boundText = (els: SceneEl[], containerId: string) => els.find((e) => e.type === 'text' && e.containerId === containerId)?.text ?? null;
@@ -157,8 +174,23 @@ export async function openBoard(page: Page, cli: RunningCli, first: string): Pro
 }
 
 export interface Exported {
-  items: { id: string; kind: string; path: string | null; gone?: boolean; frame: string | null; content: string; author?: string; state: string; zone: string; snapshot: { content: string } | null; changed_after_agreement?: boolean }[];
-  comments: { target: string; resolved: boolean; comments: { author: string; text: string }[] }[];
+  items: {
+    id: string;
+    kind: string;
+    path: string | null;
+    gone?: boolean;
+    frame: string | null;
+    content: string;
+    author?: string;
+    state: string;
+    area: string | null;
+    area_source: string | null;
+    area_set_by: string | null;
+    snapshot: { content: string } | null;
+    changed_after_agreement?: boolean;
+    review: { state: string; by: string; reason: string } | null;
+  }[];
+  comments: { target: string; resolved: boolean; comments: { author: string; text: string; verdict: string | null; entry: string }[] }[];
   edges: { source: string; label: string }[];
   decisions: { text: string; covers: string[] }[];
 }
