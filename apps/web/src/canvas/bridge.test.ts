@@ -539,6 +539,13 @@ describe('milestones and stories on the canvas', () => {
     expect(canvas.scene.find((e) => e.id === 'frame:a~milestone-start' && !e.isDeleted)).toBeUndefined();
   });
 
+  it('each feature board without a milestone has exactly one start card, in its own frame', () => {
+    const starts = () => canvas.scene.filter((e) => !e.isDeleted && (e.customData as { ab?: string } | undefined)?.ab === 'milestone-start').map((e) => `${e.id}@${e.frameId}`).sort();
+    expect(starts()).toEqual(['frame:a~milestone-start@frame:a', 'frame:b~milestone-start@frame:b']);
+    story();
+    expect(starts()).toEqual(['frame:b~milestone-start@frame:b']);
+  });
+
   it('draws a "blocks" arrow from the blocker to the story, with its label', () => {
     const { s1, s2 } = story();
     setBlockedBy(doc, s2, [s1]);

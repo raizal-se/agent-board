@@ -124,9 +124,15 @@ async function fillStory(page: Page, f: Fields): Promise<void> {
 
 /** Start Milestone 1 in an empty Milestone area with a first story, and fill it. Returns the story id. */
 async function startStory(page: Page, frame: string, f: Fields): Promise<string> {
-  const start = `${await frameId(page, frame)}~milestone-start`;
-  await focus(page, start);
-  await page.getByTestId('milestone-start').getByTestId('start-story').click();
+  const fid = await frameId(page, frame);
+  // Every feature board without a milestone has exactly one start card, in its own frame.
+  const els = await scene(page);
+  const frames = els.filter((e) => e.type === 'frame').map((e) => e.id).sort();
+  const starts = ofKind(els, 'milestone-start');
+  expect(starts.map((e) => e.frameId).sort(), 'one start card per feature board').toEqual(frames);
+  expect(starts.map((e) => e.id).sort()).toEqual(frames.map((f) => `${f}~milestone-start`));
+  await focus(page, `${fid}~milestone-start`);
+  await page.locator(`[data-testid="milestone-start"][data-frame="${fid}"]`).getByTestId('start-story').click();
   await fillStory(page, f);
   return (await stories(page, 1))[0]!;
 }
@@ -181,7 +187,7 @@ test.describe('desktop', () => {
     await focus(page, s2!);
     const two = storyCard(page, s2!);
     await expect(two.getByTestId('story-half-engineering')).toContainText('No engineering part');
-    await expect(two.getByTestId('story-start')).toHaveText('blocked by Story 1 · Card form ready');
+    await expect(two.getByTestId('story-start')).toHaveText('blocked by Story 1');
     await expect(two).toHaveAttribute('data-can-start', 'no');
     await expect(two.getByTestId('story-block')).toHaveText('Set an owner first');
     await expect(two.getByTestId('story-agree')).toBeDisabled();
@@ -280,7 +286,7 @@ test.describe('desktop', () => {
     const els = await scene(page);
     expect(boundText(els, `${s1}~blocks~${s2}`)).toBe('blocks');
     await focus(page, s2!);
-    await expect(storyCard(page, s2!).getByTestId('story-start')).toHaveText('blocked by Story 1 · Card form ready');
+    await expect(storyCard(page, s2!).getByTestId('story-start')).toHaveText('blocked by Story 1');
     await expect(storyCard(page, s2!)).toHaveAttribute('data-can-start', 'no');
     await focus(page, mid);
     await expect(page.getByTestId('milestone-count')).toHaveText('2 stories · 0 approved · 1 can start');
