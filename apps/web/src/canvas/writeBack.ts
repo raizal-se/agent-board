@@ -138,8 +138,9 @@ export function writeScene(doc: Y.Doc, elements: readonly El[], seen: Map<string
           }
           const z = zone(area);
           if (!z) break;
-          const x = Math.max(0, el.x - z.x);
-          const y = Math.max(0, el.y - z.y);
+          // Where the user dropped it, even partly outside its area: the board never moves a placed card.
+          const x = el.x - z.x;
+          const y = el.y - z.y;
           const next = kind === 'decision' ? placed(layout.get(el.id), x, y, el.width, el.height, sizeIn(undefined, 'decision')) : cardPlaced(layout.get(el.id), x, y, el.width, el.height);
           setLayout(el.id, next);
           break;

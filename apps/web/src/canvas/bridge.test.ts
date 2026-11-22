@@ -163,6 +163,23 @@ describe('doc to elements', () => {
     expect(canvas.get('y').version).toBe(before.get('y')!.version + 1);
   });
 
+  it("a file link's label stays at the middle of its arrow when a card grows to its content", () => {
+    const label = 'fe:x->a/y.md#~label';
+    // The canvas measures the label with the real font: wider than the rough measure.
+    canvas.edit(label, { width: 88, height: 20 });
+    vi.runAllTimers();
+    layoutMap(doc).set('y', { x: 404, y: 76, w: BLOCK_W, h: 1200 });
+    vi.runAllTimers();
+    const arrow = canvas.get('fe:x->a/y.md#');
+    const pts = arrow.points as [number, number][];
+    const end = pts[pts.length - 1]!;
+    const mid = { x: arrow.x + end[0] / 2, y: arrow.y + end[1] / 2 };
+    const t = canvas.get(label);
+    expect(t.width).toBe(88);
+    expect(t.x + t.width / 2).toBeCloseTo(mid.x);
+    expect(t.y + t.height / 2).toBeCloseTo(mid.y);
+  });
+
   it('marks an agreed block and one changed after agreement', () => {
     agreementsMap(doc).set('x', { item: 'x', decision: 'd1', snapshot: { text: 'old', hash: 'h0', type: 'markdown', at: 1 }, accepts: [] });
     vi.runAllTimers();
@@ -214,6 +231,22 @@ describe('elements to doc', () => {
     sync.flush();
     expect(layoutOf('x')).toEqual({ x: 100 - O, y: 300 - O, w: x.width, h: x.height });
     expect(layoutOf('frame:b')).toEqual({ x: 4500, y: 40 });
+  });
+
+  it('a block dropped over the edge of its area stays where it was dropped', () => {
+    // Its centre in Engineering, its left edge 34 px out of it (over the gap, as in a quick drag).
+    const eng = canvas.get('frame:a~zone:engineering');
+    canvas.edit('x', { x: eng.x - 34, y: eng.y - 10 });
+    sync.flush();
+    vi.runAllTimers();
+    expect(layoutOf('x')).toMatchObject({ x: -34, y: -10 });
+    expect(canvas.get('x')).toMatchObject({ x: eng.x - 34, y: eng.y - 10 });
+    // Above or left of Product, the same.
+    canvas.edit('y', { x: O - 20, y: O - 8 });
+    sync.flush();
+    vi.runAllTimers();
+    expect(layoutOf('y')).toMatchObject({ x: -20, y: -8 });
+    expect(canvas.get('y')).toMatchObject({ x: O - 20, y: O - 8 });
   });
 
   it('writes a resized block with its size', () => {

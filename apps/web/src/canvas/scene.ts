@@ -407,9 +407,13 @@ const sortedIds = (refs: readonly BoundRef[] | null | undefined) =>
     .join(',');
 const bindingId = (b: unknown) => (b && typeof b === 'object' ? ((b as { elementId?: string }).elementId ?? null) : null);
 
+/** Labels bound to an arrow: the bridge keeps them at the arrow's middle (Excalidraw does not move them when it is given a new arrow). */
+const ARROW_LABEL_KINDS = new Set<Kind>(['file-edge-label', 'link-label']);
+
 /**
- * Whether the canvas element already shows what the doc wants. Text geometry is left out: the
- * canvas measures text with the real font and places bound text itself.
+ * Whether the canvas element already shows what the doc wants. Text size is left out: the canvas
+ * measures text with the real font. A text in a shape is placed by the canvas; a free text and an
+ * arrow's label are placed by the doc.
  */
 export function sameElement(local: El, want: El): boolean {
   const text = want.type === 'text';
@@ -436,7 +440,7 @@ export function sameElement(local: El, want: El): boolean {
     'verticalAlign',
   ];
   if (!text) keys.push('x', 'y', 'width', 'height');
-  else if (!want.containerId) keys.push('x', 'y');
+  else if (!want.containerId || ARROW_LABEL_KINDS.has(kindOf(want)!)) keys.push('x', 'y');
   for (const k of keys) if ((local[k] ?? null) !== (want[k] ?? null)) return false;
   if (sortedIds(local.boundElements) !== sortedIds(want.boundElements)) return false;
   if (bindingId(local.startBinding) !== bindingId(want.startBinding) || bindingId(local.endBinding) !== bindingId(want.endBinding)) return false;
@@ -516,8 +520,12 @@ export function mergeScene({ desired, stored, local, held, known }: MergeInput):
     if (!container) continue;
     let t = want;
     if (container.type === 'arrow') {
+      // Centred with the size the canvas measured, so a label stays at the middle when its arrow moves.
+      const l = localById.get(want.id);
+      const width = l && !l.isDeleted ? l.width : want.width;
+      const height = l && !l.isDeleted ? l.height : want.height;
       const mid = arrowMiddle(container);
-      t = { ...want, x: mid.x - want.width / 2, y: mid.y - want.height / 2 };
+      t = { ...want, width, height, x: mid.x - width / 2, y: mid.y - height / 2 };
     }
     merged.set(want.id, settle(t));
   }
