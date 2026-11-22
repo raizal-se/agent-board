@@ -55,9 +55,12 @@ test('tap a block to select it; its open button shows the full view', async ({ p
   await openBoard(page, cli!, 'checkout/flow.md');
   const p = await pressPoint(page, await idOf(page, 'checkout/flow.md'));
   await page.touchscreen.tap(p.x, p.y);
-  await expect(page.getByTestId('selection-bar')).toContainText('checkout/flow.md');
-  await block(page, 'checkout/flow.md').getByRole('button', { name: 'open checkout/flow.md' }).tap();
-  await expect(page.getByTestId('fullview')).toBeVisible();
+  await expect(page.getByTestId('selection-bar'), 'the tap selects the block').toContainText('checkout/flow.md');
+  const open = block(page, 'checkout/flow.md').getByRole('button', { name: 'open checkout/flow.md' });
+  await expect(open, "the block's open button is on screen").toBeInViewport();
+  // Bounded: if something covers the button (a bar), the error names it instead of the test timing out.
+  await open.tap({ timeout: 10_000 });
+  await expect(page.getByTestId('fullview'), 'the open button shows the full view').toBeVisible();
   await expect(page.getByTestId('fullview')).toContainText('Card form, then the payment API.');
 });
 

@@ -29,10 +29,15 @@ export interface SceneEl {
   ab: Record<string, unknown> | null;
 }
 
+/**
+ * The scene, or [] until BoardCanvas has set `window.__board` (it does once Excalidraw hands over
+ * its API, after the page is online), so a poll over it retries instead of throwing.
+ */
 export async function scene(page: Page): Promise<SceneEl[]> {
   return page.evaluate(() => {
-    const api = (window as unknown as { __board: { api: { getSceneElements(): Record<string, any>[] } } }).__board.api;
-    return api.getSceneElements().map((e) => ({
+    const board = (window as unknown as { __board?: { api: { getSceneElements(): Record<string, any>[] } } }).__board;
+    if (!board) return [];
+    return board.api.getSceneElements().map((e) => ({
       id: e.id,
       type: e.type,
       x: e.x,
@@ -117,6 +122,13 @@ export async function idOf(page: Page, path: string): Promise<string> {
   return id!;
 }
 
+/** Wait until BoardCanvas has the Excalidraw API and has set `window.__board` (the helpers read it). */
+export async function canvasUp(page: Page): Promise<void> {
+  await expect
+    .poll(() => page.evaluate(() => !!(window as unknown as { __board?: unknown }).__board), { message: 'the canvas is up (window.__board set)' })
+    .toBe(true);
+}
+
 /** Select file blocks in this order, by clicking them on the canvas. */
 export async function selectPaths(page: Page, ...paths: string[]): Promise<void> {
   for (const [i, p] of paths.entries()) await clickEl(page, await idOf(page, p), i > 0);
@@ -132,6 +144,7 @@ export const block = (page: Page, path: string) => page.locator(`[data-testid="b
 export async function openBoard(page: Page, cli: RunningCli, first: string): Promise<void> {
   await page.goto(cli.url);
   await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'online');
+  await canvasUp(page);
   await idOf(page, first);
   await expect(block(page, first)).toBeVisible();
   await expect

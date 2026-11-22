@@ -68,8 +68,10 @@ const block = (page: Page, path: string) => page.locator(`[data-testid="block"][
 
 async function scene(page: Page): Promise<SceneEl[]> {
   return page.evaluate(() => {
-    const api = (window as unknown as { __board: { api: { getSceneElements(): Record<string, any>[] } } }).__board.api;
-    return api.getSceneElements().map((e) => ({
+    // [] until BoardCanvas sets __board, so a poll retries.
+    const board = (window as unknown as { __board?: { api: { getSceneElements(): Record<string, any>[] } } }).__board;
+    if (!board) return [];
+    return board.api.getSceneElements().map((e) => ({
       id: e.id,
       type: e.type,
       x: e.x,

@@ -70,8 +70,12 @@ const renderEmbeddable = (el: NonDeleted<ExcalidrawEmbeddableElement>) => {
 
 const BOARD_KINDS = new Set(['file', 'decision', 'sticky']);
 
-/** Room at the top of the canvas for our header (and Excalidraw's toolbar above it on a wide screen). */
-const TOP_INSET = 112;
+/**
+ * Room at the top of the canvas for our bars: the header and, under it, the selection bar
+ * (styles.css: the overlay starts at 64 px; header and bar end near 145 px), so a selected block's
+ * own buttons are not under the bar.
+ */
+const TOP_INSET = 152;
 
 /** Shows the whole board, from the top: on a phone it fills the width instead of sitting mid-screen. */
 function fitBoard(api: ExcalidrawImperativeAPI): void {
