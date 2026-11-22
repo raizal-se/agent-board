@@ -76,6 +76,12 @@ describe('edges by hand', () => {
     expect(edgesMap(doc).has(id)).toBe(false);
   });
 
+  it('keeps the id it is given (an arrow drawn on the canvas keeps its own)', () => {
+    const doc = createBoardDoc();
+    expect(addHumanEdge(doc, { id: 'arrow-1', from: 'a', to: 'b', by: dewi })).toBe('arrow-1');
+    expect(edgesMap(doc).get('arrow-1')).toMatchObject({ id: 'arrow-1', from: 'a', to: 'b' });
+  });
+
   it('a file change never touches a drawn edge', () => {
     const doc = createBoardDoc();
     const id = addHumanEdge(doc, { from: 'a', to: 'b', by: dewi })!;

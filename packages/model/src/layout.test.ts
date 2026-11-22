@@ -52,6 +52,14 @@ describe('placement', () => {
     expect(nextItemSpot(doc, frameId('other'))).toEqual(first);
   });
 
+  it('a resized block takes its own size', () => {
+    const doc = createBoardDoc();
+    const f = frameId('checkout');
+    itemsMap(doc).set('a', item('a', f));
+    layoutMap(doc).set('a', { x: zoneX('product'), y: ZONE_TOP, w: BLOCK_W, h: 900 });
+    expect(nextItemSpot(doc, f)).toEqual({ x: zoneX('product'), y: ZONE_TOP + 900 + GRID_GAP });
+  });
+
   it('a block dragged into a column keeps its place taken; a smaller item fits a smaller gap', () => {
     const doc = createBoardDoc();
     const f = frameId('checkout');

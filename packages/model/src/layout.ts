@@ -68,7 +68,7 @@ export function sizeOf(item: Pick<BoardItem, 'kind'>): { w: number; h: number } 
   }
 }
 
-/** Places taken in a frame: every drawn item in it with a layout. */
+/** Places taken in a frame: every drawn item in it with a layout, at its own size if it was resized. */
 function takenIn(doc: Y.Doc, frame: string, exceptId?: string): Rect[] {
   const layout = layoutMap(doc);
   const taken: Rect[] = [];
@@ -76,7 +76,7 @@ function takenIn(doc: Y.Doc, frame: string, exceptId?: string): Rect[] {
     if (!item || item.id === exceptId || !('frame' in item) || item.frame !== frame) continue;
     const size = sizeOf(item);
     const l = layout.get(item.id);
-    if (size && l) taken.push({ x: l.x, y: l.y, ...size });
+    if (size && l) taken.push({ x: l.x, y: l.y, w: l.w ?? size.w, h: l.h ?? size.h });
   }
   return taken;
 }

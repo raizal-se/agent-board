@@ -139,9 +139,12 @@ export function deleteSticky(doc: Y.Doc, id: string): boolean {
 
 // --- edges drawn by people ---
 
-export function addHumanEdge(doc: Y.Doc, opts: { from: string; to: string; label?: string; by: Person; now?: number }): string | null {
+export function addHumanEdge(
+  doc: Y.Doc,
+  opts: { from: string; to: string; label?: string; by: Person; now?: number; id?: string },
+): string | null {
   if (opts.from === opts.to) return null;
-  const id = nativeId('e');
+  const id = opts.id ?? nativeId('e');
   edgesMap(doc).set(id, { id, source: 'human', from: opts.from, to: opts.to, label: (opts.label ?? '').trim(), author: opts.by.name, createdAt: opts.now ?? Date.now() });
   return id;
 }
