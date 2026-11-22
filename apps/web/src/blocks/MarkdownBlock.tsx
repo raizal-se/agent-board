@@ -11,7 +11,7 @@ export function MarkdownBody({ text }: { text: string }) {
 
 export const MarkdownBlock = memo(function MarkdownBlock({ data }: NodeProps<BlockNode>) {
   return (
-    <BlockChrome item={data.item} missing={data.missing}>
+    <BlockChrome data={data}>
       <div className="block-body nowheel">
         <MarkdownBody text={data.item.text} />
       </div>

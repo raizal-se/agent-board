@@ -44,7 +44,7 @@ export const HtmlBlock = memo(function HtmlBlock({ data }: NodeProps<BlockNode>)
   }, [visible]);
 
   return (
-    <BlockChrome item={data.item} missing={data.missing}>
+    <BlockChrome data={data}>
       <div ref={boxRef} className="html-thumb" style={{ width: THUMB_W, height: THUMB_H }} data-loaded={visible ? 'yes' : 'no'} data-scale={fit.scale.toFixed(3)}>
         {visible ? (
           <iframe
