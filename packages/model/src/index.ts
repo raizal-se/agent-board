@@ -58,3 +58,4 @@ export * from './agreement';
 export * from './canvas';
 export * from './diff';
 export * from './export';
+export * from './people';

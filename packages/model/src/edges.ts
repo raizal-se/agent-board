@@ -103,13 +103,15 @@ export function syncFileEdges(
 /**
  * A block now exists at `path`: point every edge whose link names that path at it. This fills
  * waiting edges, and takes back edges that followed an earlier file at that path to its new name.
+ * With `from`, only edges whose file passes it (the same owner's files on a shared board).
  */
-export function resolveEdgesTo(doc: Y.Doc, path: string, itemId: string): number {
+export function resolveEdgesTo(doc: Y.Doc, path: string, itemId: string, from?: (fromItem: string) => boolean): number {
   const edges = edgesMap(doc);
   let n = 0;
   doc.transact(() => {
     for (const [id, e] of edges.entries()) {
-      if (isFileEdge(e) && e.toPath === path && e.to !== itemId) {
+      // On a shared board paths repeat across people: a link resolves inside its owner's folder.
+      if (isFileEdge(e) && e.toPath === path && e.to !== itemId && (!from || from(e.from))) {
         edges.set(id, { ...e, to: itemId });
         n++;
       }

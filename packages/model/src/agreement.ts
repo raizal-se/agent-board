@@ -3,6 +3,7 @@ import { boardPlaced, nextItemSpot, snapId } from './area';
 import { fileItemOf, type FileItem, type FileType } from './items';
 import { estimateCardH, layoutMap } from './layout';
 import { addVerdict, type Accept, type Person } from './native';
+import { acceptKey, acceptsMap, boardModeOf, pendingAccepts } from './people';
 
 /**
  * Agreement (design 6), on the card. "✓ Agree" freezes a snapshot of the block's content: the live
@@ -97,17 +98,63 @@ export function agreeItem(doc: Y.Doc, itemId: string, opts: { by: Person; note?:
   const f = fileItemOf(doc, itemId);
   if (!f || f.gone) return false;
   const at = opts.now ?? Date.now();
-  const accepts: Accept[] = [{ name: opts.by.name, side: opts.by.side, at }];
+  const mode = opts.mode ?? boardModeOf(doc);
   doc.transact(() => {
     addVerdict(doc, { target: itemId, by: opts.by, verdict: 'agree', text: opts.note, now: at });
-    if (!isAgreed(accepts, opts.mode ?? 'solo')) return;
-    const prev = agreementsMap(doc).get(itemId);
-    agreementsMap(doc).set(itemId, { item: itemId, ...(prev?.decision ? { decision: prev.decision } : {}), snapshot: snapshotOf(f, at), accepts });
-    reviewsMap(doc).delete(itemId);
-    const layout = layoutMap(doc);
-    if (!layout.has(snapId(itemId))) layout.set(snapId(itemId), boardPlaced(undefined, nextItemSpot(doc, f.frame, { area: 'agreed', h: estimateCardH(f.type, f.text) })));
+    // This person's accept of this version. In peer mode the other side's accept of the same
+    // version may already be there (or come later, see settleAgreements).
+    acceptsMap(doc).set(acceptKey(itemId, opts.by.name), { item: itemId, name: opts.by.name, side: opts.by.side, hash: f.hash, at });
+    const accepts: Accept[] = mode === 'solo' ? [{ name: opts.by.name, side: opts.by.side, at }] : pendingAccepts(doc, itemId, f.hash);
+    if (!isAgreed(accepts, mode)) return;
+    takeSnapshot(doc, f, accepts, at);
   });
   return true;
+}
+
+/** The block becomes agreed now: a snapshot of the file as it is, and a snapshot card in Agreed. */
+function takeSnapshot(doc: Y.Doc, f: FileItem, accepts: Accept[], at: number) {
+  const itemId = f.id;
+  const prev = agreementsMap(doc).get(itemId);
+  agreementsMap(doc).set(itemId, { item: itemId, ...(prev?.decision ? { decision: prev.decision } : {}), snapshot: snapshotOf(f, at), accepts });
+  reviewsMap(doc).delete(itemId);
+  const layout = layoutMap(doc);
+  if (!layout.has(snapId(itemId))) layout.set(snapId(itemId), boardPlaced(undefined, nextItemSpot(doc, f.frame, { area: 'agreed', h: estimateCardH(f.type, f.text) })));
+}
+
+/**
+ * Peer mode: two people can click "✓ Agree" at the same moment on two devices, and neither sees
+ * the other's accept yet. Each device runs this after changes: a version that has its product and
+ * its engineering accept, and no snapshot yet, becomes agreed here. Returns the blocks it agreed.
+ */
+export function settleAgreements(doc: Y.Doc, now = Date.now()): string[] {
+  if (boardModeOf(doc) !== 'peer') return [];
+  const done: string[] = [];
+  const items = new Set<string>();
+  for (const a of acceptsMap(doc).values()) if (a) items.add(a.item);
+  doc.transact(() => {
+    for (const id of items) {
+      const f = fileItemOf(doc, id);
+      if (!f || f.gone) continue;
+      const accepts = pendingAccepts(doc, id, f.hash);
+      if (!isAgreed(accepts, 'peer')) continue;
+      const a = agreementsMap(doc).get(id);
+      if (a && a.snapshot.hash === f.hash && isAgreed(a.accepts, 'peer')) continue;
+      takeSnapshot(doc, f, accepts, Math.max(now, ...accepts.map((x) => x.at)));
+      done.push(id);
+    }
+  });
+  return done;
+}
+
+/** "1 of 2 · waiting for engineering": accepts of the current version that are not enough yet. */
+export function waitingAccepts(doc: Y.Doc, itemId: string): Accept[] {
+  const f = fileItemOf(doc, itemId);
+  if (!f || boardModeOf(doc) !== 'peer') return [];
+  const accepts = pendingAccepts(doc, itemId, f.hash);
+  if (isAgreed(accepts, 'peer')) return [];
+  const a = agreementsMap(doc).get(itemId);
+  if (a && a.snapshot.hash === f.hash && isAgreed(a.accepts, 'peer')) return [];
+  return accepts;
 }
 
 /**

@@ -4,6 +4,7 @@ import { resolveArea, sidesMap } from './area';
 import { edgesMap, isFileEdge } from './edges';
 import { boardIdOf, boardMap, type Device, type Side } from './index';
 import { framesMap, isFileItem, itemsMap } from './items';
+import { activeMembers, boardModeOf, pendingAccepts, peopleOf } from './people';
 import { entryText, isComment, isDecision, isSticky, isThread, type CommentItem } from './native';
 
 /**
@@ -14,8 +15,9 @@ export const EXPORT_FORMAT = 'agent-board/1';
 
 const iso = (ms: number | undefined) => (ms === undefined ? null : new Date(ms).toISOString());
 
-export function exportBoard(doc: Y.Doc, opts: { mode?: AgreeMode } = {}) {
-  const mode = opts.mode ?? 'solo';
+export function exportBoard(doc: Y.Doc, opts: { mode?: AgreeMode; online?: readonly string[] } = {}) {
+  const mode = opts.mode ?? boardModeOf(doc);
+  const online = new Set(opts.online ?? []);
   const meta = boardMap<string>(doc, 'meta');
   const devices = boardMap<Device>(doc, 'devices');
   const sideOf = (name: string): Side => devices.get(name)?.side ?? 'product';
@@ -43,6 +45,7 @@ export function exportBoard(doc: Y.Doc, opts: { mode?: AgreeMode } = {}) {
       author: `${f.owner}'s agent`,
       author_kind: 'agent' as const,
       owner: f.owner,
+      owner_device: f.device ?? null,
       gone: f.gone,
       updated_at: iso(f.updatedAt),
       content: f.text,
@@ -50,6 +53,11 @@ export function exportBoard(doc: Y.Doc, opts: { mode?: AgreeMode } = {}) {
         ? { content: a.snapshot.text, agreed_at: iso(a.snapshot.at), decision: a.decision ?? null, accepts: a.accepts.map((x) => ({ name: x.name, side: x.side, at: iso(x.at) })) }
         : null,
       changed_after_agreement: changedAfterAgreement(f, a),
+      /** Accepts of the current version that do not make it agreed yet (peer mode). */
+      pending_accepts:
+        a && a.snapshot.hash === f.hash
+          ? []
+          : pendingAccepts(doc, f.id, f.hash).map((x) => ({ name: x.name, side: x.side, at: iso(x.at) })),
       review: review && mark ? { state: mark, by: review.by, at: iso(review.at), reason: review.reason } : null,
     };
   });
@@ -72,6 +80,7 @@ export function exportBoard(doc: Y.Doc, opts: { mode?: AgreeMode } = {}) {
     content: s.text,
     snapshot: null,
     changed_after_agreement: false,
+    pending_accepts: [],
     review: null,
   }));
 
@@ -113,6 +122,14 @@ export function exportBoard(doc: Y.Doc, opts: { mode?: AgreeMode } = {}) {
     read_only: 'Agents read this file. Never edit it: the board rewrites it after each change.',
     agreement_mode: mode,
     board: { id: boardIdOf(doc) ?? null, name: meta.get('name') ?? null },
+    people: peopleOf(doc).map((p) => ({
+      name: p.name,
+      side: p.side,
+      online: online.has(p.name),
+      devices: activeMembers(doc)
+        .filter((m) => m.name === p.name)
+        .map((m) => ({ device: m.pk, kind: m.kind })),
+    })),
     frames: [...framesMap(doc).values()].filter(Boolean).sort((a, b) => a.name.localeCompare(b.name)).map((f) => ({ id: f.id, name: f.name })),
     items: [...files, ...stickies],
     edges,

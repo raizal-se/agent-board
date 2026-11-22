@@ -31,6 +31,10 @@ export interface FileItem {
   gone: boolean;
   /** Last write by the CLI, ms since epoch. */
   updatedAt: number;
+  /** On a shared board: the owner's device key (hex). Only that device may change the item. */
+  device?: string;
+  /** On a shared board: the device's signature over the item (see the sync package, owner.ts). */
+  sig?: string;
 }
 
 /** A feature frame. Each first-level subfolder is one; files at the root go to a frame named after the folder. */
