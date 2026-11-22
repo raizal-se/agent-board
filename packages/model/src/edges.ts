@@ -24,13 +24,35 @@ export interface FileEdge {
   label: string;
 }
 
+/** An edge a person drew on the board. Only the board changes it; files never touch it. */
+export interface HumanEdge {
+  id: string;
+  source: 'human';
+  from: string;
+  to: string;
+  label: string;
+  /** Name of the person who drew it. */
+  author: string;
+  createdAt: number;
+}
+
+export type BoardEdge = FileEdge | HumanEdge;
+
+export function isFileEdge(e: unknown): e is FileEdge {
+  return !!e && typeof e === 'object' && (e as FileEdge).source === 'file';
+}
+
+export function isHumanEdge(e: unknown): e is HumanEdge {
+  return !!e && typeof e === 'object' && (e as HumanEdge).source === 'human';
+}
+
 export interface LinkInput {
   to: string;
   label: string;
 }
 
-export function edgesMap(doc: Y.Doc): Y.Map<FileEdge> {
-  return doc.getMap<FileEdge>('edges');
+export function edgesMap(doc: Y.Doc): Y.Map<BoardEdge> {
+  return doc.getMap<BoardEdge>('edges');
 }
 
 /** Stable id from the owner item, the path as written and the label. */
@@ -57,14 +79,14 @@ export function syncFileEdges(
   const removed: string[] = [];
   doc.transact(() => {
     for (const [id, e] of edges.entries()) {
-      if (e?.source === 'file' && e.from === fromItem && !want.has(id)) {
+      if (isFileEdge(e) && e.from === fromItem && !want.has(id)) {
         edges.delete(id);
         removed.push(id);
       }
     }
     for (const [id, l] of want) {
       const prev = edges.get(id);
-      if (!prev) {
+      if (!isFileEdge(prev)) {
         edges.set(id, { id, source: 'file', from: fromItem, toPath: l.to, to: resolve(l.to), label: l.label });
         added.push(id);
       } else {
@@ -87,7 +109,7 @@ export function resolveEdgesTo(doc: Y.Doc, path: string, itemId: string): number
   let n = 0;
   doc.transact(() => {
     for (const [id, e] of edges.entries()) {
-      if (e?.source === 'file' && e.toPath === path && e.to !== itemId) {
+      if (isFileEdge(e) && e.toPath === path && e.to !== itemId) {
         edges.set(id, { ...e, to: itemId });
         n++;
       }
@@ -98,5 +120,5 @@ export function resolveEdgesTo(doc: Y.Doc, path: string, itemId: string): number
 
 /** All file edges owned by one item. */
 export function fileEdgesOf(doc: Y.Doc, fromItem: string): FileEdge[] {
-  return [...edgesMap(doc).values()].filter((e) => e?.source === 'file' && e.from === fromItem);
+  return [...edgesMap(doc).values()].filter((e): e is FileEdge => isFileEdge(e) && e.from === fromItem);
 }

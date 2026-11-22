@@ -1,5 +1,6 @@
 import type * as Y from 'yjs';
 import type { Side } from './index';
+import type { BoardNativeItem } from './native';
 
 export type FileType = 'markdown' | 'html';
 
@@ -58,8 +59,21 @@ export function newItemId(): string {
   return `f_${globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
 }
 
-export function itemsMap(doc: Y.Doc): Y.Map<FileItem> {
-  return doc.getMap<FileItem>('items');
+/** Everything in the `items` map: file blocks (from the CLI) and board-native items (from people). */
+export type BoardItem = FileItem | BoardNativeItem;
+
+export function itemsMap(doc: Y.Doc): Y.Map<BoardItem> {
+  return doc.getMap<BoardItem>('items');
+}
+
+/** The file block with this id, if it is one. */
+export function fileItemOf(doc: Y.Doc, id: string): FileItem | undefined {
+  const v = itemsMap(doc).get(id);
+  return isFileItem(v) ? v : undefined;
+}
+
+export function fileItems(doc: Y.Doc): FileItem[] {
+  return [...itemsMap(doc).values()].filter(isFileItem);
 }
 
 export function framesMap(doc: Y.Doc): Y.Map<Frame> {

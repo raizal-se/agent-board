@@ -1,61 +1,116 @@
 import type * as Y from 'yjs';
-import type { Layout } from './index';
-import { framesMap, itemsMap } from './items';
+import type { Layout, Zone } from './index';
+import { framesMap, itemsMap, type BoardItem } from './items';
 
 /**
- * Fixed block and grid sizes. The canvas and the CLI share them so a new block lands in a free cell.
- * Item positions are relative to their frame.
+ * Fixed sizes. The canvas and the CLI share them so a new block lands in a free spot.
+ * Item positions are relative to their frame (a sticky outside any frame: relative to the board).
  */
 export const BLOCK_W = 340;
 export const BLOCK_H = 380;
+export const STICKY_W = 200;
+export const STICKY_H = 160;
+export const DECISION_W = BLOCK_W;
+export const DECISION_H = 170;
 export const GRID_GAP = 32;
 export const FRAME_PAD = 32;
 export const FRAME_HEADER = 48;
-/** New blocks fill a frame two per row, so a few frames still fit a laptop screen. */
-export const FRAME_COLS = 2;
+/** Room for a zone's label above the first block in it. */
+export const ZONE_LABEL_H = 28;
+export const ZONE_TOP = FRAME_HEADER + ZONE_LABEL_H;
 export const FRAME_GAP = 120;
-export const FRAME_MIN_W = FRAME_PAD * 2 + FRAME_COLS * BLOCK_W + (FRAME_COLS - 1) * GRID_GAP;
-export const FRAME_MIN_H = FRAME_HEADER + FRAME_PAD + BLOCK_H;
+
+/**
+ * The four soft zones of a feature frame (design 3), one column each, left to right. A zone is a
+ * colour area, not a box: what zone a block is in comes from its state (design 3.1). Its column is
+ * only where a new block starts.
+ */
+export const ZONES = ['product', 'engineering', 'agreed', 'milestone'] as const satisfies readonly Zone[];
+export type FrameZone = (typeof ZONES)[number];
+
+export const FRAME_MIN_W = FRAME_PAD * 2 + ZONES.length * BLOCK_W + (ZONES.length - 1) * GRID_GAP;
+export const FRAME_MIN_H = ZONE_TOP + BLOCK_H + FRAME_PAD;
 
 export function layoutMap(doc: Y.Doc): Y.Map<Layout> {
   return doc.getMap<Layout>('layout');
 }
 
-function cell(index: number): { x: number; y: number } {
-  const col = index % FRAME_COLS;
-  const row = Math.floor(index / FRAME_COLS);
-  return { x: FRAME_PAD + col * (BLOCK_W + GRID_GAP), y: FRAME_HEADER + row * (BLOCK_H + GRID_GAP) };
+/** Left edge of a zone's column, relative to its frame. */
+export function zoneX(zone: FrameZone): number {
+  return FRAME_PAD + ZONES.indexOf(zone) * (BLOCK_W + GRID_GAP);
 }
 
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** The zone areas of a frame of height `h`, relative to the frame. */
+export function zoneRects(h: number): Record<FrameZone, Rect> {
+  const out = {} as Record<FrameZone, Rect>;
+  for (const z of ZONES) out[z] = { x: zoneX(z) - 12, y: FRAME_HEADER, w: BLOCK_W + 24, h: Math.max(0, h - FRAME_HEADER - FRAME_PAD + 12) };
+  return out;
+}
+
+/** The size an item takes on the board, or null for items that are not drawn as nodes. */
+export function sizeOf(item: Pick<BoardItem, 'kind'>): { w: number; h: number } | null {
+  switch (item.kind) {
+    case 'file':
+      return { w: BLOCK_W, h: BLOCK_H };
+    case 'sticky':
+      return { w: STICKY_W, h: STICKY_H };
+    case 'decision':
+      return { w: DECISION_W, h: DECISION_H };
+    default:
+      return null;
+  }
+}
+
+/** Places taken in a frame: every drawn item in it with a layout. */
+function takenIn(doc: Y.Doc, frame: string, exceptId?: string): Rect[] {
+  const layout = layoutMap(doc);
+  const taken: Rect[] = [];
+  for (const item of itemsMap(doc).values()) {
+    if (!item || item.id === exceptId || !('frame' in item) || item.frame !== frame) continue;
+    const size = sizeOf(item);
+    const l = layout.get(item.id);
+    if (size && l) taken.push({ x: l.x, y: l.y, ...size });
+  }
+  return taken;
+}
+
+const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
 /**
- * The first grid cell in a frame that no block covers. Hidden (gone) blocks keep their cell, so a
+ * The first free spot from the top of a zone's column. Hidden (gone) blocks keep their place, so a
  * file that comes back lands where it was.
  */
-export function nextItemSpot(doc: Y.Doc, frame: string, exceptId?: string): { x: number; y: number } {
-  const layout = layoutMap(doc);
-  const taken: Layout[] = [];
-  for (const item of itemsMap(doc).values()) {
-    if (item.frame !== frame || item.id === exceptId) continue;
-    const l = layout.get(item.id);
-    if (l) taken.push(l);
+export function nextItemSpot(
+  doc: Y.Doc,
+  frame: string,
+  opts: { zone?: FrameZone; w?: number; h?: number; exceptId?: string } = {},
+): { x: number; y: number } {
+  const want = { x: zoneX(opts.zone ?? 'product'), w: opts.w ?? BLOCK_W, h: opts.h ?? BLOCK_H };
+  const taken = takenIn(doc, frame, opts.exceptId);
+  const ys = [ZONE_TOP, ...taken.map((r) => r.y + r.h + GRID_GAP)].filter((y) => y >= ZONE_TOP).sort((a, b) => a - b);
+  for (const y of ys) {
+    if (!taken.some((r) => overlaps(r, { ...want, y }))) return { x: want.x, y };
   }
-  for (let i = 0; ; i++) {
-    const c = cell(i);
-    const covered = taken.some((l) => Math.abs(l.x - c.x) < BLOCK_W && Math.abs(l.y - c.y) < BLOCK_H);
-    if (!covered) return c;
-  }
+  return { x: want.x, y: ys[ys.length - 1]! };
 }
 
 /**
- * A frame's size: room for its blocks (hidden ones keep their cell), and never less than one row of
- * FRAME_COLS blocks. The canvas and frame placement both use this, so they agree.
+ * A frame's size: room for its four zones and for every item in it (hidden ones keep their
+ * place). The canvas and frame placement both use this, so they agree.
  */
-export function frameSize(blocks: Iterable<{ x: number; y: number }>): { w: number; h: number } {
+export function frameSize(items: Iterable<{ x: number; y: number; w?: number; h?: number }>): { w: number; h: number } {
   let w = FRAME_MIN_W;
   let h = FRAME_MIN_H;
-  for (const p of blocks) {
-    w = Math.max(w, p.x + BLOCK_W + FRAME_PAD);
-    h = Math.max(h, p.y + BLOCK_H + FRAME_PAD);
+  for (const p of items) {
+    w = Math.max(w, p.x + (p.w ?? BLOCK_W) + FRAME_PAD);
+    h = Math.max(h, p.y + (p.h ?? BLOCK_H) + FRAME_PAD);
   }
   return { w, h };
 }
@@ -63,18 +118,10 @@ export function frameSize(blocks: Iterable<{ x: number; y: number }>): { w: numb
 /** Frames line up left to right; a new one goes right of the rightmost. */
 export function nextFrameSpot(doc: Y.Doc): Layout {
   const layout = layoutMap(doc);
-  const blocksOf = new Map<string, Layout[]>();
-  for (const item of itemsMap(doc).values()) {
-    const l = layout.get(item.id);
-    if (!l) continue;
-    const list = blocksOf.get(item.frame) ?? [];
-    list.push(l);
-    blocksOf.set(item.frame, list);
-  }
   let right = -FRAME_GAP;
   for (const f of framesMap(doc).values()) {
     const l = layout.get(f.id);
-    if (l) right = Math.max(right, l.x + frameSize(blocksOf.get(f.id) ?? []).w);
+    if (l) right = Math.max(right, l.x + frameSize(takenIn(doc, f.id)).w);
   }
   return { x: right + FRAME_GAP, y: 0 };
 }
