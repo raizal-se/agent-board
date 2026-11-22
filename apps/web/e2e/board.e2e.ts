@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { renameSync } from 'node:fs';
 import { join } from 'node:path';
+import { block, boundText, byPath, clickEl, fitAll, guardPage, idOf, ofKind, openBoard, placeOf, pressPoint, scene, screenBox, type SceneEl } from './canvas';
 import { startCli, type RunningCli } from './cli';
 
 const FLOW = `---
@@ -33,32 +34,43 @@ const FILES = {
 };
 
 // Each test gets its own folder and its own CLI, so one failure does not hide the others.
-let cli: RunningCli;
-let errors: string[];
-
-test.beforeEach(async ({ page }) => {
-  errors = [];
-  page.on('pageerror', (e) => errors.push(e.message));
+let cli: RunningCli | undefined;
+guardPage(() => cli);
+test.beforeEach(async () => {
   cli = await startCli(FILES);
 });
 
-test.afterEach(async () => {
-  await cli?.stop();
-  expect(errors, 'no errors in the page').toEqual([]);
-});
+const open = (page: Page) => openBoard(page, cli!, 'checkout/flow.md');
 
-const block = (page: Page, path: string) => page.locator(`[data-testid="block"][data-path="${path}"]`);
-
-async function open(page: Page) {
-  await page.goto(cli.url);
-  await expect(page.getByTestId('status')).toHaveAttribute('data-status', 'online');
-  await expect(block(page, 'checkout/flow.md')).toBeVisible();
+/** The file link from one path to another, as an arrow on the canvas. */
+function fileEdge(els: SceneEl[], from: string, to: string): SceneEl | undefined {
+  const a = byPath(els, from);
+  const b = byPath(els, to);
+  return ofKind(els, 'file-edge').find((e) => a && b && e.start === a.id && e.end === b.id);
 }
 
-test('each subfolder is a frame, root files go to the folder frame', async ({ page }) => {
+test('each subfolder is a frame, root files go to the folder frame; blocks show no link icon', async ({ page }) => {
   await open(page);
-  for (const name of ['checkout', 'ui', 'payments']) await expect(page.locator(`[data-frame="${name}"]`)).toBeVisible();
+  const els = await scene(page);
+  expect(els.filter((e) => e.type === 'frame').map((e) => e.name).sort()).toEqual(['checkout', 'payments', 'ui']);
+  const frameOf = (path: string) => els.find((e) => e.id === byPath(els, path)!.frameId)?.name;
+  expect(frameOf('checkout/api.md')).toBe('checkout');
+  expect(frameOf('ui/card-form.html')).toBe('ui');
+  expect(frameOf('readme.md')).toBe('payments');
   await expect(block(page, 'readme.md')).toContainText('Payments board');
+  // Excalidraw draws a link icon on any element with a link: blocks drop theirs once embedded.
+  await expect.poll(async () => ofKind(await scene(page), 'file').map((e) => e.link)).toEqual(Array(5).fill(null));
+});
+
+test('empty zones are thin strips; the zones in use are full columns', async ({ page }) => {
+  await open(page);
+  const els = await scene(page);
+  const zone = (frame: string, z: string) => els.find((e) => e.ab?.ab === 'zone' && e.ab.zone === z && els.find((f) => f.id === e.frameId)?.name === frame)!;
+  // Every block starts in the product zone.
+  expect(zone('checkout', 'product').width).toBeGreaterThan(300);
+  for (const z of ['engineering', 'agreed', 'milestone']) expect(zone('checkout', z).width).toBeLessThan(40);
+  const label = els.find((e) => e.ab?.ab === 'zone-label' && e.ab.zone === 'milestone' && e.frameId === zone('checkout', 'milestone').frameId)!;
+  expect(label.angle).toBeCloseTo((3 * Math.PI) / 2);
 });
 
 test('a mermaid fence renders as a diagram, a broken one shows the error', async ({ page }) => {
@@ -67,7 +79,9 @@ test('a mermaid fence renders as a diagram, a broken one shows the error', async
   await expect(block(page, 'checkout/flow.md')).toContainText('Payment API');
   await expect(block(page, 'checkout/flow.md')).not.toContainText('links:');
 
-  cli.write('checkout/broken.md', '```mermaid\nflowchart LR\n  A[Card form --> B\n```\n');
+  cli!.write('checkout/broken.md', '```mermaid\nflowchart LR\n  A[Card form --> B\n```\n');
+  await expect.poll(() => placeOf(page, 'checkout/broken.md'), { timeout: 3000 }).not.toBeNull();
+  await fitAll(page);
   await expect(block(page, 'checkout/broken.md').locator('.mermaid-error')).toContainText('Mermaid error');
 });
 
@@ -76,7 +90,7 @@ test('a file saved on disk shows in its block within 1 s, with no reload', async
   for (let i = 0; i < 3; i++) {
     const token = `saved-${Date.now()}-${i}`;
     const start = Date.now();
-    cli.write('checkout/api.md', `# Payment API\n\n${token}\n`);
+    cli!.write('checkout/api.md', `# Payment API\n\n${token}\n`);
     await expect(block(page, 'checkout/api.md')).toContainText(token, { timeout: 3000 });
     const ms = Date.now() - start;
     console.log(`save to block: ${ms} ms`);
@@ -84,83 +98,55 @@ test('a file saved on disk shows in its block within 1 s, with no reload', async
   }
 });
 
-test('a link in a file draws an edge; removing it deletes the edge', async ({ page }) => {
+test('a link in a file draws an arrow; removing it deletes the arrow', async ({ page }) => {
   await open(page);
-  await expect(page.locator('[aria-label="link from checkout/flow.md to checkout/api.md"]')).toBeAttached();
-  await expect(page.locator('[aria-label="link from ui/card-form.html to checkout/flow.md"]')).toBeAttached();
+  await expect.poll(async () => !!fileEdge(await scene(page), 'checkout/flow.md', 'checkout/api.md')).toBe(true);
+  await expect.poll(async () => !!fileEdge(await scene(page), 'ui/card-form.html', 'checkout/flow.md')).toBe(true);
 
-  cli.write('readme.md', '---\nlinks:\n  - to: checkout/next.md\n    label: next\n---\n# Payments board\n');
+  cli!.write('readme.md', '---\nlinks:\n  - to: checkout/next.md\n    label: next\n---\n# Payments board\n');
   await expect(block(page, 'readme.md').getByTestId('missing-links')).toContainText('links to missing file: checkout/next.md');
-  cli.write('checkout/next.md', '# Next\n');
-  await expect(page.locator('[aria-label="link from readme.md to checkout/next.md"]')).toBeAttached();
+  cli!.write('checkout/next.md', '# Next\n');
+  await expect.poll(async () => !!fileEdge(await scene(page), 'readme.md', 'checkout/next.md'), { timeout: 3000 }).toBe(true);
   await expect(block(page, 'readme.md').getByTestId('missing-links')).toHaveCount(0);
 
-  cli.write('readme.md', '# Payments board\n');
-  await expect(page.locator('[aria-label="link from readme.md to checkout/next.md"]')).toHaveCount(0);
+  cli!.write('readme.md', '# Payments board\n');
+  await expect.poll(async () => !!fileEdge(await scene(page), 'readme.md', 'checkout/next.md'), { timeout: 3000 }).toBe(false);
 });
 
-test('edges run border to border above the frames, each label at its own edge', async ({ page }) => {
+test('a file link runs border to border above the frames, dotted and locked, its label at its middle', async ({ page }) => {
   await open(page);
   const pairs: [string, string, string][] = [
     ['checkout/flow.md', 'checkout/api.md', 'calls'],
     ['ui/card-form.html', 'checkout/flow.md', 'shows'],
   ];
-  const labels = page.getByTestId('edge-label');
-  await expect(labels).toHaveCount(2);
-  expect((await labels.locator('.edge-label-text').allInnerTexts()).sort()).toEqual(['calls', 'shows']);
-  // A file edge names the file it comes from.
-  await expect(labels.filter({ hasText: 'calls' }).locator('.edge-label-file')).toHaveText('from flow.md');
-
-  // Label boxes do not overlap.
-  const [a, b] = await labels.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON() as DOMRect));
-  const overlap = a!.left < b!.right && b!.left < a!.right && a!.top < b!.bottom && b!.top < a!.bottom;
-  expect(overlap, 'edge labels overlap').toBe(false);
-
+  await expect.poll(async () => ofKind(await scene(page), 'file-edge').length).toBe(2);
+  const els = await scene(page);
+  const index = new Map(els.map((e, i) => [e.id, i]));
   for (const [from, to, label] of pairs) {
-    const geo = await page.evaluate(
-      ({ from, to, label }) => {
-        const g = document.querySelector(`[aria-label="link from ${from} to ${to}"]`)!;
-        const path = g.querySelector<SVGPathElement>('.react-flow__edge-path')!;
-        const m = path.getScreenCTM()!;
-        const len = path.getTotalLength();
-        const at = (d: number) => {
-          const p = new DOMPoint(path.getPointAtLength(d).x, path.getPointAtLength(d).y).matrixTransform(m);
-          return { x: p.x, y: p.y };
-        };
-        const rect = (p: string) => document.querySelector(`[data-testid="block"][data-path="${p}"]`)!.getBoundingClientRect().toJSON() as DOMRect;
-        const lab = [...document.querySelectorAll('[data-testid="edge-label"]')].find((e) => e.querySelector('.edge-label-text')?.textContent === label)!;
-        const lr = lab.getBoundingClientRect();
-        const mid = at(len / 2);
-        // What is on top at the middle of the line: make the thin dashed stroke hittable first.
-        path.style.pointerEvents = 'stroke';
-        path.style.strokeWidth = '12';
-        const stack = document.elementsFromPoint(mid.x, mid.y);
-        const edgeAt = stack.indexOf(path);
-        const frameAt = stack.findIndex((e) => e.closest('.react-flow__node-frame'));
-        path.style.pointerEvents = '';
-        path.style.strokeWidth = '';
-        return {
-          start: at(0),
-          end: at(len),
-          mid,
-          label: { x: lr.left + lr.width / 2, y: lr.top + lr.height / 2 },
-          from: rect(from),
-          to: rect(to),
-          edgeAboveFrame: edgeAt !== -1 && (frameAt === -1 || edgeAt < frameAt),
-        };
-      },
-      { from, to, label },
-    );
-    const onBorder = (p: { x: number; y: number }, r: DOMRect) => {
+    const arrow = fileEdge(els, from, to)!;
+    expect(arrow, `${from} -> ${to}`).toBeTruthy();
+    expect(arrow.strokeStyle).toBe('dotted');
+    expect(arrow.locked).toBe(true);
+    expect(boundText(els, arrow.id)).toBe(label);
+
+    const pts = arrow.points!.map(([x, y]) => ({ x: arrow.x + x, y: arrow.y + y }));
+    const start = pts[0]!;
+    const end = pts[pts.length - 1]!;
+    const onBorder = (p: { x: number; y: number }, r: SceneEl) => {
       const tol = 3;
-      const inside = p.x >= r.left - tol && p.x <= r.right + tol && p.y >= r.top - tol && p.y <= r.bottom + tol;
-      const deep = p.x > r.left + tol && p.x < r.right - tol && p.y > r.top + tol && p.y < r.bottom - tol;
+      const inside = p.x >= r.x - tol && p.x <= r.x + r.width + tol && p.y >= r.y - tol && p.y <= r.y + r.height + tol;
+      const deep = p.x > r.x + tol && p.x < r.x + r.width - tol && p.y > r.y + tol && p.y < r.y + r.height - tol;
       return inside && !deep;
     };
-    expect(onBorder(geo.start, geo.from), `${from} -> ${to} starts on the border of ${from}`).toBe(true);
-    expect(onBorder(geo.end, geo.to), `${from} -> ${to} ends on the border of ${to}`).toBe(true);
-    expect(Math.hypot(geo.label.x - geo.mid.x, geo.label.y - geo.mid.y), `label "${label}" at its edge's midpoint`).toBeLessThan(4);
-    expect(geo.edgeAboveFrame, `${from} -> ${to} is drawn above the frame`).toBe(true);
+    expect(onBorder(start, byPath(els, from)!), `${from} -> ${to} starts on the border of ${from}`).toBe(true);
+    expect(onBorder(end, byPath(els, to)!), `${from} -> ${to} ends on the border of ${to}`).toBe(true);
+
+    const text = els.find((e) => e.type === 'text' && e.containerId === arrow.id)!;
+    const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+    expect(Math.hypot(text.x + text.width / 2 - mid.x, text.y + text.height / 2 - mid.y), `label "${label}" at its arrow's middle`).toBeLessThan(4);
+
+    // Drawn after (above) every frame.
+    for (const f of els.filter((e) => e.type === 'frame')) expect(index.get(arrow.id)!).toBeGreaterThan(index.get(f.id)!);
   }
 });
 
@@ -184,7 +170,7 @@ test('an HTML thumbnail loads sandboxed, takes no clicks, and opens full size', 
   const openBtn = block(page, 'ui/card-form.html').getByRole('button', { name: 'open ui/card-form.html' });
   const full = page.getByTestId('fullview');
 
-  // Esc closes it while focus is in the board.
+  // The block's own open button, on the canvas.
   await openBtn.click();
   await expect(full).toBeVisible();
   await page.keyboard.press('Escape');
@@ -214,61 +200,75 @@ test('an HTML thumbnail loads sandboxed, takes no clicks, and opens full size', 
   await page.mouse.move(titleBar.x + 20, titleBar.y + titleBar.height / 2, { steps: 5 });
   await page.keyboard.press('Escape');
   await expect(full).toHaveCount(0);
+
+  // Selected on the canvas, the selection bar opens it too.
+  await clickEl(page, await idOf(page, 'ui/card-form.html'));
+  await page.getByTestId('selection-bar').getByRole('button', { name: 'Open' }).click();
+  await expect(full).toBeVisible();
 });
 
-async function nodeOffset(page: Page, id: string) {
-  return page.locator(`.react-flow__node[data-id="${id}"]`).evaluate((el) => {
-    const m = /translate\(\s*(-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec((el as HTMLElement).style.transform);
-    return m ? { x: Math.round(Number(m[1])), y: Math.round(Number(m[2])) } : null;
-  });
-}
+test('a file block cannot be deleted; its file link cannot be deleted', async ({ page }) => {
+  await open(page);
+  const id = await idOf(page, 'checkout/api.md');
+  const p = await pressPoint(page, id);
+  await page.mouse.click(p.x, p.y);
+  await expect(page.getByTestId('selection-bar')).toContainText('checkout/api.md');
+  await page.keyboard.press('Delete');
+  await page.waitForTimeout(500);
+  const els = await scene(page);
+  expect(byPath(els, 'checkout/api.md')).toBeTruthy();
+  await expect(block(page, 'checkout/api.md')).toBeVisible();
+  expect(fileEdge(els, 'checkout/flow.md', 'checkout/api.md')).toBeTruthy();
+});
 
 test('a dragged block keeps its place after a reload', async ({ page }) => {
   await open(page);
-  const b = block(page, 'checkout/api.md');
-  const id = (await b.getAttribute('data-id'))!;
-  const before = await nodeOffset(page, id);
-  const title = b.locator('.block-name');
-  const box = (await title.boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const id = await idOf(page, 'checkout/api.md');
+  const before = await placeOf(page, 'checkout/api.md');
+  const p = await pressPoint(page, id);
+  await page.mouse.move(p.x, p.y);
   await page.mouse.down();
-  for (let i = 1; i <= 10; i++) await page.mouse.move(box.x + box.width / 2 + i * 12, box.y + box.height / 2 + i * 9);
+  for (let i = 1; i <= 10; i++) await page.mouse.move(p.x + i * 12, p.y + i * 9);
   await page.mouse.up();
-  const after = await nodeOffset(page, id);
-  expect(after).not.toEqual(before);
+  await expect.poll(() => placeOf(page, 'checkout/api.md')).not.toEqual(before);
+  const after = await placeOf(page, 'checkout/api.md');
+  // The block's own view moved with it.
+  const box = (await block(page, 'checkout/api.md').boundingBox())!;
+  const el = await screenBox(page, id);
+  expect(Math.abs(box.x - el.x)).toBeLessThan(4);
 
   await page.waitForTimeout(400); // the CLI saves the doc shortly after each change
   await page.reload();
   await expect(block(page, 'checkout/api.md')).toBeVisible();
-  expect(await nodeOffset(page, id)).toEqual(after);
+  expect(await placeOf(page, 'checkout/api.md')).toEqual(after);
 });
 
 test('a deleted file hides its block in the hidden list; it comes back in place', async ({ page }) => {
   await open(page);
   const b = block(page, 'checkout/later.md');
   await expect(b).toBeVisible();
-  const id = (await b.getAttribute('data-id'))!;
-  const before = await nodeOffset(page, id);
-  cli.remove('checkout/later.md');
+  const before = await placeOf(page, 'checkout/later.md');
+  cli!.remove('checkout/later.md');
   await expect(b).toHaveCount(0, { timeout: 4000 });
+  await expect.poll(() => placeOf(page, 'checkout/later.md')).toBeNull();
   await page.getByRole('button', { name: /Hidden blocks \(1\)/ }).click();
   await expect(page.getByTestId('hidden-list')).toContainText('checkout/later.md');
 
-  cli.write('checkout/later.md', '# Later, again\n');
+  cli!.write('checkout/later.md', '# Later, again\n');
   await expect(b).toContainText('Later, again');
-  expect(await nodeOffset(page, id)).toEqual(before);
+  expect(await placeOf(page, 'checkout/later.md')).toEqual(before);
 });
 
 test('a renamed file keeps its block and position, with the new name', async ({ page }) => {
   await open(page);
-  const b = block(page, 'checkout/later.md');
-  const id = (await b.getAttribute('data-id'))!;
-  const before = await nodeOffset(page, id);
-  renameSync(join(cli.folder, 'checkout', 'later.md'), join(cli.folder, 'checkout', 'soon.md'));
+  const id = await idOf(page, 'checkout/later.md');
+  const before = await placeOf(page, 'checkout/later.md');
+  renameSync(join(cli!.folder, 'checkout', 'later.md'), join(cli!.folder, 'checkout', 'soon.md'));
   const renamed = block(page, 'checkout/soon.md');
   await expect(renamed).toBeVisible();
   expect(await renamed.getAttribute('data-id')).toBe(id);
-  expect(await nodeOffset(page, id)).toEqual(before);
+  expect(await idOf(page, 'checkout/soon.md')).toBe(id);
+  expect(await placeOf(page, 'checkout/soon.md')).toEqual(before);
   await page.waitForTimeout(1500); // past the rename window: the block must not go gone
   await expect(renamed).toBeVisible();
   await expect(page.getByTestId('hidden-list')).toHaveCount(0);
@@ -276,14 +276,14 @@ test('a renamed file keeps its block and position, with the new name', async ({ 
 
 test('the board survives a CLI restart', async ({ page }) => {
   await open(page);
-  const id = (await block(page, 'checkout/api.md').getAttribute('data-id'))!;
-  const pos = await nodeOffset(page, id);
-  const folder = cli.folder;
-  await cli.stop();
+  const id = await idOf(page, 'checkout/api.md');
+  const pos = await placeOf(page, 'checkout/api.md');
+  const folder = cli!.folder;
+  await cli!.stop();
   await expect(page.getByTestId('status')).not.toHaveAttribute('data-status', 'online');
   cli = await startCli({}, folder);
   await page.goto(cli.url);
   await expect(block(page, 'checkout/api.md')).toBeVisible();
-  expect(await block(page, 'checkout/api.md').getAttribute('data-id')).toBe(id);
-  expect(await nodeOffset(page, id)).toEqual(pos);
+  expect(await idOf(page, 'checkout/api.md')).toBe(id);
+  expect(await placeOf(page, 'checkout/api.md')).toEqual(pos);
 });
