@@ -22,8 +22,8 @@ import { startServer, type BoardServer } from './server';
 import { autoExport, autoSave, autoSettle, DOC_FILE, writeExport, EXPORT_FILE, loadDoc, STATE_DIR, type AutoSave } from './store';
 import { fileExists, watchFolder } from './watcher';
 
-/** The built web app, next to this package in the monorepo. */
-export const DEFAULT_WEB_DIR = fileURLToPath(new URL('../../web/dist', import.meta.url));
+/** The built web app, next to this package in the monorepo (AGENT_BOARD_WEB_DIR for tests). */
+export const DEFAULT_WEB_DIR = process.env.AGENT_BOARD_WEB_DIR || fileURLToPath(new URL('../../web/dist', import.meta.url));
 
 export interface BoardOptions {
   folder: string;

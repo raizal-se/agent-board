@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./peer": "./src/peer-entry.ts",
-    "./node-rtc": "./src/node-rtc.ts"
+    "./node-rtc": "./src/node-rtc.ts",
+    "./testing/local-nostr-relay": "./src/testing/local-nostr-relay.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",
