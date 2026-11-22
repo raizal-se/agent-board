@@ -32,6 +32,13 @@ export interface Fit {
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 1;
+/**
+ * "Fit all" may go below Excalidraw's own floor (0.1, which only its zoom buttons, wheel and
+ * pinch keep): a board of several feature boards is about 10 000 wide, so on a phone it fits
+ * across only near 0.04. Excalidraw draws at any zoom set through updateScene; the next pinch
+ * starts from its floor.
+ */
+const FIT_ALL_MIN_ZOOM = 0.01;
 
 export function contentBounds(els: Iterable<{ x: number; y: number; width: number; height: number; isDeleted?: boolean }>): Bounds | null {
   let b: Bounds | null = null;
@@ -53,7 +60,7 @@ export function fitTop(b: Bounds, s: ViewSpace): Fit {
   const h = Math.max(1, b.maxY - b.minY);
   const availW = Math.max(1, s.width - 2 * s.pad);
   const availH = Math.max(1, s.height - s.top - Math.max(s.pad, s.bottom ?? 0));
-  const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(availW / w, availH / h)));
+  const zoom = Math.min(MAX_ZOOM, Math.max(FIT_ALL_MIN_ZOOM, Math.min(availW / w, availH / h)));
   return {
     zoom,
     scrollX: (s.width / zoom - w) / 2 - b.minX,

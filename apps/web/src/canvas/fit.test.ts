@@ -19,6 +19,17 @@ describe('the first view', () => {
     expect(s.bottom).toBeLessThan(844 / 2);
   });
 
+  it('Fit all on a phone fits a board of several feature boards across the width, even below Excalidraw\'s own 0.1 floor', () => {
+    // Three frames of about 2920 with 400 between them, on a Pixel 7.
+    const b = { minX: 0, minY: 0, maxX: 9560, maxY: 2400 };
+    const f = fitTop(b, { width: 412, height: 839, top: 112, pad: 12, bottom: 120 });
+    const s = screen(b, f);
+    expect(f.zoom).toBeLessThan(0.1);
+    expect(s.left).toBeGreaterThanOrEqual(0);
+    expect(s.right).toBeLessThanOrEqual(412);
+    expect(s.top).toBeCloseTo(112);
+  });
+
   it('on a wide screen, tall content fits the height, centred left to right', () => {
     const b = { minX: 0, minY: 0, maxX: 500, maxY: 2000 };
     const f = fitTop(b, { width: 1400, height: 900, top: 100, pad: 20 });
