@@ -27,6 +27,26 @@ export interface BoardServer {
   close(): Promise<void>;
 }
 
+/** Text types: the build writes a .br and .gz copy of each of these (see apps/web/vite.config.ts). */
+const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.svg', '.json']);
+
+/**
+ * The encodings a request accepts, best first: brotli, then gzip. Anything with q=0 is refused.
+ * `Accept-Encoding: *` counts as both.
+ */
+export function acceptedEncodings(header: string | string[] | undefined): ('br' | 'gzip')[] {
+  const q = new Map<string, number>();
+  for (const part of String(header ?? '').toLowerCase().split(',')) {
+    const [name, ...params] = part.trim().split(';').map((x) => x.trim());
+    if (!name) continue;
+    const qp = params.find((p) => p.startsWith('q='));
+    const v = qp ? Number(qp.slice(2)) : 1;
+    q.set(name, Number.isFinite(v) ? v : 0);
+  }
+  const ok = (e: string) => (q.get(e) ?? (q.has('*') ? q.get('*')! : 0)) > 0;
+  return (['br', 'gzip'] as const).filter(ok);
+}
+
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -122,6 +142,14 @@ function refuse(res: ServerResponse, code: number, text: string) {
   res.end(`${text}\n`);
 }
 
+function isPlainFile(file: string): boolean {
+  try {
+    return statSync(file).isFile();
+  } catch {
+    return false;
+  }
+}
+
 function serveStatic(root: string, req: IncomingMessage, res: ServerResponse) {
   let pathname: string;
   try {
@@ -143,15 +171,35 @@ function serveStatic(root: string, req: IncomingMessage, res: ServerResponse) {
     if (extname(pathname)) return refuse(res, 404, 'Not found');
     target = join(root, 'index.html');
   }
-  const type = TYPES[extname(target)] ?? 'application/octet-stream';
-  res.writeHead(200, {
+  const ext = extname(target);
+  const type = TYPES[ext] ?? 'application/octet-stream';
+  const headers: Record<string, string> = {
     'Content-Type': type,
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'no-referrer',
     'Cache-Control': pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-store',
-  });
+  };
+  // A copy compressed at build time, if the browser takes it; else the file as it is.
+  let body = target;
+  if (COMPRESSIBLE.has(ext)) {
+    headers.Vary = 'Accept-Encoding';
+    for (const enc of acceptedEncodings(req.headers['accept-encoding'])) {
+      const copy = `${target}.${enc === 'br' ? 'br' : 'gz'}`;
+      if (isPlainFile(copy)) {
+        body = copy;
+        headers['Content-Encoding'] = enc;
+        break;
+      }
+    }
+  }
+  try {
+    headers['Content-Length'] = String(statSync(body).size);
+  } catch {
+    return refuse(res, 404, 'Not found');
+  }
+  res.writeHead(200, headers);
   if (req.method === 'HEAD') return res.end();
-  createReadStream(target)
+  createReadStream(body)
     .on('error', () => res.destroy())
     .pipe(res);
 }

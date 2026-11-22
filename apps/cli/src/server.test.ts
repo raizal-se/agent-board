@@ -1,9 +1,12 @@
+import { writeFileSync } from 'node:fs';
 import { request } from 'node:http';
+import { join } from 'node:path';
+import { brotliCompressSync, brotliDecompressSync, gzipSync, gunzipSync } from 'node:zlib';
 import { createBoardDoc, ensureBoardId, fileItemOf, itemsMap, layoutMap } from '@agent-board/model';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeMessage } from '@agent-board/sync';
 import { WebSocket } from 'ws';
-import { startServer, type BoardServer } from './server';
+import { acceptedEncodings, startServer, type BoardServer } from './server';
 import { connectTab, fakeWebDir, until } from './test-helpers';
 
 const cleanup: (() => Promise<unknown> | unknown)[] = [];
@@ -11,9 +14,9 @@ afterEach(async () => {
   for (const f of cleanup.splice(0).reverse()) await f();
 });
 
-async function server() {
+async function server(webDir = fakeWebDir()) {
   const doc = createBoardDoc();
-  const s = await startServer({ doc, port: 0, webDir: fakeWebDir() });
+  const s = await startServer({ doc, port: 0, webDir });
   cleanup.push(() => s.close());
   return { doc, s };
 }
@@ -24,6 +27,20 @@ function get(s: BoardServer, path: string, host: string): Promise<{ status: numb
       let body = '';
       res.on('data', (c) => (body += c));
       res.on('end', () => ok({ status: res.statusCode ?? 0, body }));
+    });
+    req.on('error', fail);
+    req.end();
+  });
+}
+
+function raw(s: BoardServer, path: string, host: string, encoding?: string): Promise<{ status: number; headers: Record<string, string | string[] | undefined>; body: Buffer }> {
+  return new Promise((ok, fail) => {
+    const headers: Record<string, string> = { Host: host };
+    if (encoding !== undefined) headers['Accept-Encoding'] = encoding;
+    const req = request({ host: '127.0.0.1', port: s.port, path, headers }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(c));
+      res.on('end', () => ok({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks) }));
     });
     req.on('error', fail);
     req.end();
@@ -57,6 +74,50 @@ describe('board server', () => {
     expect((await get(s, '/assets/app.js', `localhost:${s.port}`)).body).toContain('console.log');
     expect((await get(s, '/assets/missing.js', `localhost:${s.port}`)).status).toBe(404);
     expect((await get(s, '/../../etc/passwd', `localhost:${s.port}`)).body).not.toContain('root:');
+  });
+
+  it('serves the copy compressed at build time that the browser takes, with Vary; else the raw file', async () => {
+    const dir = fakeWebDir();
+    const js = `console.log(${JSON.stringify('x'.repeat(5000))})`;
+    writeFileSync(join(dir, 'assets', 'big.js'), js);
+    writeFileSync(join(dir, 'assets', 'big.js.br'), brotliCompressSync(js));
+    writeFileSync(join(dir, 'assets', 'big.js.gz'), gzipSync(js));
+    const { s } = await server(dir);
+    const host = `127.0.0.1:${s.port}`;
+
+    const br = await raw(s, '/assets/big.js', host, 'gzip, deflate, br');
+    expect(br.headers['content-encoding']).toBe('br');
+    expect(br.headers.vary).toBe('Accept-Encoding');
+    expect(br.headers['content-type']).toBe('text/javascript; charset=utf-8');
+    expect(brotliDecompressSync(br.body).toString()).toBe(js);
+    expect(Number(br.headers['content-length'])).toBe(br.body.length);
+    expect(br.body.length).toBeLessThan(js.length / 10);
+
+    const gz = await raw(s, '/assets/big.js', host, 'gzip');
+    expect(gz.headers['content-encoding']).toBe('gzip');
+    expect(gunzipSync(gz.body).toString()).toBe(js);
+
+    for (const enc of [undefined, 'identity', 'br;q=0, gzip;q=0']) {
+      const plain = await raw(s, '/assets/big.js', host, enc);
+      expect(plain.headers['content-encoding']).toBeUndefined();
+      expect(plain.headers.vary).toBe('Accept-Encoding');
+      expect(plain.body.toString()).toBe(js);
+    }
+    // No compressed copy (app.js): the raw file, whatever the browser takes.
+    const none = await raw(s, '/assets/app.js', host, 'br, gzip');
+    expect(none.headers['content-encoding']).toBeUndefined();
+    expect(none.body.toString()).toBe('console.log(1)');
+    // The Host check still holds for compressed assets.
+    expect((await raw(s, '/assets/big.js', 'evil.example', 'br')).status).toBe(421);
+  });
+
+  it('reads Accept-Encoding with q values', () => {
+    expect(acceptedEncodings('gzip, deflate, br, zstd')).toEqual(['br', 'gzip']);
+    expect(acceptedEncodings('br;q=0, gzip;q=0.5')).toEqual(['gzip']);
+    expect(acceptedEncodings('*')).toEqual(['br', 'gzip']);
+    expect(acceptedEncodings('*, br;q=0')).toEqual(['gzip']);
+    expect(acceptedEncodings(undefined)).toEqual([]);
+    expect(acceptedEncodings('identity')).toEqual([]);
   });
 
   it('refuses HTTP requests with a foreign Host (DNS rebinding)', async () => {
