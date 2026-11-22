@@ -5,7 +5,7 @@ import { exportBoard } from './export';
 import { boardMap, createBoardDoc, type Device } from './index';
 import { framesMap, itemsMap, type FileItem } from './items';
 import { layoutMap, overlaps } from './layout';
-import { commentsOn, type Person } from './native';
+import { addComment, commentsOn, type Person } from './native';
 import {
   addCover,
   addMilestone,
@@ -13,11 +13,15 @@ import {
   agreeStory,
   blockerChoices,
   canStart,
+  deleteMilestone,
+  deleteStory,
   editMilestone,
   editStory,
   importMilestone,
+  isDroppedImport,
   milestoneCount,
   milestoneFromFile,
+  milestonesMap,
   newEntries,
   rejectStory,
   removeCover,
@@ -330,5 +334,84 @@ describe('the export', () => {
     importMilestone(doc, ms, INPUT);
     const all = new Map(storiesMap(doc).entries());
     expect(milestoneCount([...all.values()], all, 'solo')).toBe('2 stories · 0 approved · 1 can start');
+  });
+});
+
+describe('deleting', () => {
+  it('deleteStory removes the story, its place, its thread and its blocked-by links in other stories', () => {
+    const { doc, ms } = board();
+    importMilestone(doc, ms, INPUT, { now: 0 });
+    addComment(doc, { target: 'story-1', by: dewi, text: 'looks good' });
+    addComment(doc, { target: 'story-2', by: dewi, text: 'keep me' });
+    expect(canStart(storiesMap(doc).get('story-2')!, new Map(storiesMap(doc).entries()))).toBe(false);
+
+    expect(deleteStory(doc, 'story-1')).toBe(true);
+    expect(storiesMap(doc).has('story-1')).toBe(false);
+    expect(layoutMap(doc).has('story-1')).toBe(false);
+    expect(commentsOn(doc, 'story-1')).toEqual([]);
+    expect(commentsOn(doc, 'story-2')).toHaveLength(1);
+    const left = storiesMap(doc).get('story-2')!;
+    expect(left.blockedBy).toEqual([]);
+    expect(canStart(left, new Map(storiesMap(doc).entries()))).toBe(true);
+    expect(deleteStory(doc, 'story-1')).toBe(false);
+  });
+
+  it('a deleted story id is not used again', () => {
+    const { doc } = board();
+    const m = addMilestone(doc, { frame: F, author: 'Dewi' });
+    addStory(doc, m, { title: 'a' }, { author: 'Dewi' });
+    const b = addStory(doc, m, { title: 'b' }, { author: 'Dewi' })!;
+    deleteStory(doc, b);
+    expect(addStory(doc, m, { title: 'c' }, { author: 'Dewi' })).toBe('story-3');
+  });
+
+  it('a deleted story of an imported milestone is not offered by "import new entries"', () => {
+    const { doc, ms } = board();
+    importMilestone(doc, ms, INPUT, { now: 0 });
+    deleteStory(doc, 'story-1');
+    const m = milestoneFromFile(doc, ms.id)!;
+    expect(newEntries(m, INPUT.entries)).toEqual([]);
+    expect(importMilestone(doc, ms, INPUT).stories).toEqual([]);
+    expect(storiesMap(doc).size).toBe(1);
+  });
+
+  it('deleteMilestone removes it and its stories; its file can be imported again', () => {
+    const { doc, ms } = board();
+    const r = importMilestone(doc, ms, INPUT, { now: 0 });
+    addComment(doc, { target: r.milestone, by: dewi, text: 'goal is clear' });
+    const other = addMilestone(doc, { frame: F, number: 2, author: 'Dewi' });
+    addStory(doc, other, { title: 'stays' }, { author: 'Dewi' });
+
+    expect(deleteMilestone(doc, r.milestone, { by: 'Dewi' })).toBe(true);
+    expect(milestonesMap(doc).has(r.milestone)).toBe(false);
+    expect(layoutMap(doc).has(r.milestone)).toBe(false);
+    expect(commentsOn(doc, r.milestone)).toEqual([]);
+    expect([...storiesMap(doc).values()].map((s) => s.title)).toEqual(['stays']);
+    expect(milestoneFromFile(doc, ms.id)).toBeUndefined();
+    // The file stays, and the CLI does not import it again by itself.
+    expect(itemsMap(doc).has(ms.id)).toBe(true);
+    expect(isDroppedImport(doc, ms.id)).toBe(true);
+
+    // A person imports it again: a fresh milestone with all its entries.
+    const again = importMilestone(doc, ms, INPUT);
+    expect(again.stories).toHaveLength(2);
+    expect(isDroppedImport(doc, ms.id)).toBe(false);
+    expect(deleteMilestone(doc, 'milestone:nope:1')).toBe(false);
+  });
+
+  it('the export drops deleted stories and milestones', () => {
+    const { doc, ms } = board();
+    const r = importMilestone(doc, ms, INPUT, { now: 0 });
+    const other = addMilestone(doc, { frame: F, number: 2, author: 'Dewi' });
+    addStory(doc, other, { title: 'stays' }, { author: 'Dewi' });
+    deleteStory(doc, 'story-1');
+    let out = exportBoard(doc);
+    expect(out.stories.map((s) => s.id)).toEqual(['story-2', 'story-3']);
+    expect(out.stories[0]).toMatchObject({ blocked_by: [], can_start: true });
+    expect(out.milestones.find((m) => m.id === r.milestone)).toMatchObject({ stories: ['story-2'], summary: '1 story · 0 approved · 1 can start' });
+    deleteMilestone(doc, r.milestone);
+    out = exportBoard(doc);
+    expect(out.milestones.map((m) => m.id)).toEqual([other]);
+    expect(out.stories.map((s) => s.id)).toEqual(['story-3']);
   });
 });

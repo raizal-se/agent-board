@@ -2,9 +2,11 @@ import type * as Y from 'yjs';
 import { changedAfterAgreement, isAgreed, type AgreeMode, type Agreement } from './agreement';
 import { boardPlaced, nextItemSpot, ownerSideOf, resolveArea, sidesMap } from './area';
 import type { Side } from './index';
-import { fileItems, fileName, type FileItem } from './items';
+import { edgesMap, isHumanEdge } from './edges';
+import { fileItems, fileName, itemsMap, type FileItem } from './items';
 import { layoutMap } from './layout';
-import { addVerdict, type Accept, type Person } from './native';
+import { addVerdict, isComment, isThread, type Accept, type Person } from './native';
+import { acceptsMap } from './people';
 
 /**
  * Milestones and stories (design 5). A milestone is the goal of a phase of one feature frame; it
@@ -200,8 +202,17 @@ export function storyWorld(doc: Y.Doc): StoryWorld {
 
 // --- making and editing ---
 
+/** The meta key that holds the highest story number used, so a deleted story's id is not used again. */
+const LAST_STORY = 'lastStory';
+
+function storyIdNumber(id: string): number {
+  const m = /^story-(\d+)$/.exec(id);
+  return m ? Number(m[1]) : 0;
+}
+
 function nextStoryId(doc: Y.Doc): string {
-  let n = 0;
+  const last = doc.getMap('meta').get(LAST_STORY);
+  let n = typeof last === 'number' ? last : 0;
   for (const id of storiesMap(doc).keys()) {
     const m = /^story-(\d+)$/.exec(id);
     if (m) n = Math.max(n, Number(m[1]));
@@ -421,6 +432,79 @@ export function rejectStory(doc: Y.Doc, id: string, opts: { by: Person; reason: 
   return true;
 }
 
+// --- deleting ---
+
+/**
+ * A milestone file whose milestone a person deleted. The CLI does not import this file again by
+ * itself. The file block shows "import", and a person can import it again. Key: the file block id.
+ */
+export interface DroppedImport {
+  item: string;
+  path: string;
+  by: string;
+  at: number;
+}
+
+export function droppedImportsMap(doc: Y.Doc): Y.Map<DroppedImport> {
+  return doc.getMap<DroppedImport>('droppedImports');
+}
+
+/** Remove the things that point to a story or a milestone: its place, its thread and its links. */
+function dropTraces(doc: Y.Doc, id: string): void {
+  layoutMap(doc).delete(id);
+  const items = itemsMap(doc);
+  for (const [cid, c] of items.entries()) if ((isComment(c) || isThread(c)) && c.target === id) items.delete(cid);
+  const edges = edgesMap(doc);
+  for (const [eid, e] of edges.entries()) if (isHumanEdge(e) && (e.from === id || e.to === id)) edges.delete(eid);
+  const accepts = acceptsMap(doc);
+  for (const [k, a] of accepts.entries()) if (a?.item === id) accepts.delete(k);
+}
+
+/**
+ * Delete a story: the story, its place, its comment thread and its accepts. The stories that it
+ * blocked lose it as a blocker. If the story came from a milestone file, its title stays in the
+ * milestone's imported titles, so "import new entries" does not offer it again.
+ * False for an unknown story.
+ */
+export function deleteStory(doc: Y.Doc, id: string, now = Date.now()): boolean {
+  const stories = storiesMap(doc);
+  if (!stories.has(id)) return false;
+  doc.transact(() => {
+    const meta = doc.getMap('meta');
+    const last = meta.get(LAST_STORY);
+    if (storyIdNumber(id) > (typeof last === 'number' ? last : 0)) meta.set(LAST_STORY, storyIdNumber(id));
+    stories.delete(id);
+    dropTraces(doc, id);
+    for (const [oid, o] of stories.entries()) {
+      if (o?.blockedBy.includes(id)) stories.set(oid, { ...o, blockedBy: o.blockedBy.filter((b) => b !== id), updatedAt: now });
+    }
+  });
+  return true;
+}
+
+/**
+ * Delete a milestone and all its stories (as `deleteStory`). If it came from a milestone file, the
+ * file stays: the CLI does not import it again by itself, and a person can import it again.
+ * False for an unknown milestone.
+ */
+export function deleteMilestone(doc: Y.Doc, id: string, opts: { by?: string; now?: number } = {}): boolean {
+  const m = milestonesMap(doc).get(id);
+  if (!m) return false;
+  const now = opts.now ?? Date.now();
+  doc.transact(() => {
+    for (const s of storiesOf(storiesMap(doc).values(), id)) deleteStory(doc, s.id, now);
+    milestonesMap(doc).delete(id);
+    dropTraces(doc, id);
+    if (m.source) droppedImportsMap(doc).set(m.source.item, { item: m.source.item, path: m.source.path, by: opts.by ?? '', at: now });
+  });
+  return true;
+}
+
+/** Whether a person deleted the milestone of this file block (and did not import it again). */
+export function isDroppedImport(doc: Y.Doc, fileId: string): boolean {
+  return droppedImportsMap(doc).has(fileId);
+}
+
 // --- import from a milestone file ---
 
 /** One milestone file, parsed (the shape of `MilestoneFile` in @agent-board/formats). */
@@ -489,6 +573,7 @@ export function importMilestone(
   const made: string[] = [];
   let mid = '';
   doc.transact(() => {
+    droppedImportsMap(doc).delete(file.id);
     const existing = milestoneFromFile(doc, file.id);
     mid =
       existing?.id ??
