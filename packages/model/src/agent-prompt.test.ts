@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agentPrompt, AGENT_BOARD_CLI } from './agent-prompt';
+import { agentPrompt, AGENT_BOARD_CLI, AGENT_BOARD_REPO } from './agent-prompt';
 
 describe('the agent prompt', () => {
   const invite = 'https://board.example/#board-0001.c2VjcmV0c2VjcmV0c2VjcmV0.AAAA';
@@ -9,6 +9,9 @@ describe('the agent prompt', () => {
     expect(text).toContain('Dewi (product)');
     expect(text).toContain('"checkout"');
     expect(text).toContain(`${AGENT_BOARD_CLI} join '${invite}' ./board`);
+    expect(text).toContain(`git clone ${AGENT_BOARD_REPO} ~/agent-board`);
+    expect(text).toContain('cd ~/agent-board && pnpm install');
+    expect(text).toContain('git pull');
     expect(text).toContain('area: product');
     expect(text).toContain('mermaid');
     expect(text).toContain('review.md');
@@ -23,7 +26,7 @@ describe('the agent prompt', () => {
   it('without an invite it says to ask for one', () => {
     const text = agentPrompt({ name: 'Tan', side: 'engineering', boardName: 'b', invite: null, cli: 'agent-board', folder: './work' });
     expect(text).toContain("agent-board join '<invitation link: ask Tan for it>' ./work");
-    expect(text).not.toContain('clone it');
+    expect(text).not.toContain('git clone');
     expect(text).toContain('area: engineering');
   });
 });

@@ -7,10 +7,12 @@ import type { Side } from './index';
 
 /**
  * How to run the CLI today. The package is not published, so `npx agent-board` does not work
- * yet: the agent runs the CLI from a checkout of the agent-board repository (`pnpm install` once,
- * then the `bin` script). After a publish to npm this can become `npx agent-board`.
+ * yet: the agent clones the repository to AGENT_BOARD_DIR, runs `pnpm install` once, then runs the
+ * `bin` script. After a publish to npm this can become `npx agent-board`.
  */
-export const AGENT_BOARD_CLI = 'node <agent-board checkout>/apps/cli/bin/agent-board.mjs';
+export const AGENT_BOARD_REPO = 'https://github.com/raizal-se/agent-board.git';
+export const AGENT_BOARD_DIR = '~/agent-board';
+export const AGENT_BOARD_CLI = `node ${AGENT_BOARD_DIR}/apps/cli/bin/agent-board.mjs`;
 
 export interface AgentPromptInput {
   name: string;
@@ -24,6 +26,19 @@ export interface AgentPromptInput {
   folder?: string;
 }
 
+/** Get the CLI: clone once, or update the clone. Needs git, Node 24 and pnpm. */
+function installSteps(): string {
+  return `First get the agent-board CLI (it needs git, Node 24 and pnpm). If ${AGENT_BOARD_DIR} does not exist, clone it and install once:
+
+    git clone ${AGENT_BOARD_REPO} ${AGENT_BOARD_DIR}
+    cd ${AGENT_BOARD_DIR} && pnpm install
+
+If ${AGENT_BOARD_DIR} exists, update it:
+
+    cd ${AGENT_BOARD_DIR} && git pull && pnpm install
+`;
+}
+
 export function agentPrompt(p: AgentPromptInput): string {
   const cli = p.cli ?? AGENT_BOARD_CLI;
   const folder = p.folder ?? './board';
@@ -35,7 +50,7 @@ export function agentPrompt(p: AgentPromptInput): string {
 People and agents on this board work in their own folders. Everything you write shows on the board for every person in a second or two.
 
 ## 1. Connect
-${cli === AGENT_BOARD_CLI ? `If you do not have the agent-board repository, clone it and run \`pnpm install\` in it once. Then run, in ${p.name}'s project:\n` : 'Run, in the project:\n'}
+${cli === AGENT_BOARD_CLI ? `${installSteps()}\nThen run, in ${p.name}'s project:\n` : 'Run, in the project:\n'}
     ${join}
 
 - Keep it running while you work. It shares the folder with the board, as ${p.name}'s files.
