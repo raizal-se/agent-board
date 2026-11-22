@@ -14,6 +14,7 @@ import {
   frameSizeFor,
   freeSpot,
   gridFor,
+  GRID_GAP,
   gridsMap,
   layoutMap,
   overlaps,
@@ -188,6 +189,44 @@ export function nextItemSpot(
   return freeSpot(taken, geo.areas[area].w, { w: opts.w ?? BLOCK_W, h: opts.h ?? estimateCardH('markdown', '') });
 }
 
+/** A place the board chose: marked so the board may push it down later (see `settleGrowth`). */
+export const boardPlaced = (old: Layout | undefined, spot: { x: number; y: number }): Layout => ({ ...old, ...spot, placedBy: 'board' });
+
+/**
+ * A card is placed once, at a height estimated before the page measures it; the page then grows it
+ * to its content, and it can grow into the card below. Push down, in each area, every card the
+ * board placed that a card above it now overlaps, to a gap below it (and so on down the column).
+ * A card a person placed never moves: a board-placed card that overlaps one is pushed past it.
+ * Returns how many cards moved.
+ */
+export function settleGrowth(doc: Y.Doc): number {
+  const layout = layoutMap(doc);
+  const moved: { id: string; y: number }[] = [];
+  for (const g of boardGeometry(geoInput(doc)).values()) {
+    for (const area of AREAS) {
+      const cells = g.cells.filter((c) => c.area === area);
+      const placed: Rect[] = cells.filter((c) => layout.get(c.id)?.placedBy !== 'board');
+      const auto = cells.filter((c) => layout.get(c.id)?.placedBy === 'board').sort((a, b) => a.y - b.y || a.x - b.x || a.id.localeCompare(b.id));
+      for (const c of auto) {
+        const r = { x: c.x, y: c.y, w: c.w, h: c.h };
+        for (;;) {
+          const hit = placed.filter((p) => overlaps(p, r));
+          if (hit.length === 0) break;
+          r.y = Math.max(...hit.map((p) => p.y + p.h + GRID_GAP));
+        }
+        if (r.y !== c.y) moved.push({ id: c.id, y: r.y });
+        placed.push(r);
+      }
+    }
+  }
+  if (moved.length > 0) {
+    doc.transact(() => {
+      for (const m of moved) layout.set(m.id, { ...layout.get(m.id)!, y: m.y });
+    });
+  }
+  return moved.length;
+}
+
 /** Everything in a frame, relative to it: blocks and cards in their areas, and notes. */
 export function frameRects(geo: FrameGeo, exceptId?: string): Rect[] {
   const out: Rect[] = [];
@@ -265,16 +304,17 @@ export function settleFrames(doc: Y.Doc): number {
 /**
  * Keep what the board has grown to: store each frame's grid when an area grew (so it never shrinks
  * back when a block moves out), and give a spot in Agreed to a snapshot card that has none (an
- * agreement from before snapshot cards). Returns how many entries it wrote.
+ * agreement from before snapshot cards). First, push down board-placed cards a grown card now
+ * overlaps (`settleGrowth`). Returns how many entries it wrote.
  */
 export function settleAreas(doc: Y.Doc): number {
-  let writes = 0;
+  let writes = settleGrowth(doc);
   doc.transact(() => {
     const layout = layoutMap(doc);
     for (const [itemId, a] of doc.getMap<Agreement>('agreements').entries()) {
       const f = fileItemOf(doc, itemId);
       if (!f || layout.has(snapId(itemId))) continue;
-      layout.set(snapId(itemId), nextItemSpot(doc, f.frame, { area: 'agreed', h: estimateCardH(a.snapshot.type, a.snapshot.text) }));
+      layout.set(snapId(itemId), boardPlaced(undefined, nextItemSpot(doc, f.frame, { area: 'agreed', h: estimateCardH(a.snapshot.type, a.snapshot.text) })));
       writes++;
     }
     const grids = gridsMap(doc);
@@ -301,7 +341,7 @@ export function switchArea(doc: Y.Doc, itemId: string, side: Side, opts: { by: P
     if (before === side) return;
     const l = layoutMap(doc).get(itemId);
     const size = { w: l?.w ?? BLOCK_W, h: l?.h ?? estimateCardH(f.type, f.text) };
-    layoutMap(doc).set(itemId, { ...l, ...nextItemSpot(doc, f.frame, { area: side, exceptId: itemId, ...size }) });
+    layoutMap(doc).set(itemId, boardPlaced(l, nextItemSpot(doc, f.frame, { area: side, exceptId: itemId, ...size })));
   });
   return true;
 }

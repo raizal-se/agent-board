@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { agreeItem } from './agreement';
 import {
   areaOf,
+  boardPlaced,
   frameGeo,
   frameRect,
   isFreeIn,
@@ -10,6 +11,7 @@ import {
   resolveArea,
   settleAreas,
   settleFrames,
+  settleGrowth,
   sidesMap,
   snapId,
   switchArea,
@@ -187,7 +189,7 @@ describe('snapshot cards and frames', () => {
     expect(frameGeo(doc, F).cells.find((c) => c.id === snapId('api'))).toMatchObject({ area: 'agreed', x: AREA_PAD, y: AREA_TOP });
     layoutMap(doc).delete(snapId('api'));
     expect(settleAreas(doc)).toBeGreaterThanOrEqual(1);
-    expect(layoutMap(doc).get(snapId('api'))).toEqual({ x: AREA_PAD, y: AREA_TOP });
+    expect(layoutMap(doc).get(snapId('api'))).toEqual({ x: AREA_PAD, y: AREA_TOP, placedBy: 'board' });
   });
 
   const frame = (doc: Doc, name: string, at?: { x: number; y: number }) => {
@@ -237,5 +239,66 @@ describe('snapshot cards and frames', () => {
     frame(doc, 'a', { x: 0, y: 0 });
     frame(doc, 'below', { x: 300, y: MIN_FRAME.h + FRAME_GAP });
     expect(settleFrames(doc)).toBe(0);
+  });
+});
+
+describe('a card that grows to its content does not end up under another card', () => {
+  /** What the CLI does for a new file: a free spot, marked as the board's. */
+  function placeNew(doc: Doc, f: FileItem, h = 400): void {
+    itemsMap(doc).set(f.id, f);
+    const l = boardPlaced(undefined, nextItemSpot(doc, f.frame, { area: areaOf(doc, f).area, h }));
+    layoutMap(doc).set(f.id, { ...l, w: BLOCK_W, h });
+  }
+  /** The page measures a card and writes its real height. */
+  const grow = (doc: Doc, id: string, h: number) => layoutMap(doc).set(id, { ...layoutMap(doc).get(id)!, h });
+
+  it('pushes the board-placed cards below a grown card down, a gap below it, and down the column', () => {
+    const doc = board();
+    for (const id of ['a', 'b', 'c', 'd', 'e']) placeNew(doc, file(id));
+    // Two across: a b / c d / e.
+    const row = (n: number) => AREA_TOP + n * (400 + GRID_GAP);
+    expect(['a', 'b', 'c', 'd', 'e'].map((id) => layoutMap(doc).get(id)!.y)).toEqual([row(0), row(0), row(1), row(1), row(2)]);
+    grow(doc, 'a', 900);
+    // c goes a gap below a, and e a gap below c.
+    expect(settleGrowth(doc)).toBe(2);
+    expect(layoutMap(doc).get('c')).toMatchObject({ x: AREA_PAD, y: AREA_TOP + 900 + GRID_GAP, placedBy: 'board' });
+    expect(layoutMap(doc).get('e')).toMatchObject({ x: AREA_PAD, y: AREA_TOP + 900 + GRID_GAP + 400 + GRID_GAP });
+    // The column right of it is not touched; nothing overlaps.
+    expect(layoutMap(doc).get('b')).toMatchObject({ y: row(0) });
+    expect(layoutMap(doc).get('d')).toMatchObject({ y: row(1) });
+    const rects = ['a', 'b', 'c', 'd', 'e'].map((id) => layoutMap(doc).get(id)!).map((l) => ({ x: l.x, y: l.y, w: l.w!, h: l.h! }));
+    for (const [i, r] of rects.entries()) for (const o of rects.slice(i + 1)) expect(overlaps(r, o)).toBe(false);
+    // Settled: nothing more moves. The CLI's settleAreas does the same.
+    expect(settleGrowth(doc)).toBe(0);
+    grow(doc, 'b', 1400);
+    settleAreas(doc);
+    expect(layoutMap(doc).get('d')!.y).toBe(AREA_TOP + 1400 + GRID_GAP);
+  });
+
+  it('never moves a card a person placed: a board-placed card that grows into one goes below it', () => {
+    const doc = board();
+    for (const id of ['a', 'b', 'c']) placeNew(doc, file(id));
+    // A person drags c a little lower: it is theirs now (no mark).
+    const mine = { x: AREA_PAD, y: 600, w: BLOCK_W, h: 400 };
+    layoutMap(doc).set('c', mine);
+    // a grows down into c. c stays; a, the board's, goes a gap below c.
+    grow(doc, 'a', 900);
+    expect(settleGrowth(doc)).toBe(1);
+    expect(layoutMap(doc).get('c')).toEqual(mine);
+    expect(layoutMap(doc).get('a')).toMatchObject({ x: AREA_PAD, y: 600 + 400 + GRID_GAP, h: 900 });
+    // Two cards a person placed that overlap stay as they are.
+    layoutMap(doc).set('b', { x: AREA_PAD, y: 700, w: BLOCK_W, h: 400 });
+    layoutMap(doc).set('a', { x: AREA_PAD, y: AREA_TOP, w: BLOCK_W, h: 900 });
+    expect(settleGrowth(doc)).toBe(0);
+    expect(layoutMap(doc).get('b')).toMatchObject({ y: 700 });
+  });
+
+  it('a card the board placed in another area after a switch is the board\'s; snapshot cards too', () => {
+    const doc = board();
+    placeNew(doc, file('a'));
+    switchArea(doc, 'a', 'product', { by: raizal });
+    expect(layoutMap(doc).get('a')?.placedBy).toBe('board');
+    agreeItem(doc, 'a', { by: raizal });
+    expect(layoutMap(doc).get(snapId('a'))?.placedBy).toBe('board');
   });
 });

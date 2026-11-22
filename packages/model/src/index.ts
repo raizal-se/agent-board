@@ -14,6 +14,12 @@ export interface Layout {
   w?: number;
   h?: number;
   tilt?: number;
+  /**
+   * 'board' while the board chose this place (a free spot) and no person has moved the card since.
+   * Only such a card is pushed down when a card above it grows into it (see `settleGrowth`).
+   * A card without it is where a person put it, and the board never moves it.
+   */
+  placedBy?: 'board';
 }
 
 export function createBoardDoc(): Y.Doc {

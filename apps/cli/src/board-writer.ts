@@ -10,6 +10,7 @@ import {
   layoutMap,
   newItemId,
   nextFrameSpot,
+  boardPlaced,
   nextItemSpot,
   overrideHolds,
   resolveArea,
@@ -192,7 +193,7 @@ export class BoardWriter {
     const where = resolveArea(item, this.side, sidesMap(this.doc).get(item.id));
     const l = layoutMap(this.doc).get(item.id);
     const spot = nextItemSpot(this.doc, item.frame, { area: where.area, exceptId: item.id, w: l?.w, h: l?.h ?? estimateCardH(item.type, item.text) });
-    layoutMap(this.doc).set(item.id, l ? { ...l, ...spot } : spot);
+    layoutMap(this.doc).set(item.id, boardPlaced(l, spot));
   }
 
   /**

@@ -44,7 +44,7 @@ In HTML, add a meta tag:
 
 - The value is `product` or `engineering`. Any other value is ignored.
 - Without `area`, the block goes to the side of the person whose CLI watches the file.
-- A new block gets a free spot in its area once. After that, only people move it. Saving the file does not move it.
+- A new block gets a free spot in its area once. After that, only people move it. Saving the file does not move it. One exception: while no person has moved a block, the board pushes it down when the card above it grows into it.
 - A person can move your block to the other area with the switch on the block. The board shows that in `board.json` as `area_source: "human"`.
 - **If a human moved your block, do not change `area` back unless asked.** A new `area` value in the file wins over the person's move, so change it only when you mean to.
 - Agreed and Milestone are for people. You cannot put a block there.

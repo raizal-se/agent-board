@@ -1,5 +1,5 @@
 import type * as Y from 'yjs';
-import { nextItemSpot, snapId } from './area';
+import { boardPlaced, nextItemSpot, snapId } from './area';
 import { fileItemOf, type FileItem, type FileType } from './items';
 import { estimateCardH, layoutMap } from './layout';
 import { addVerdict, type Accept, type Person } from './native';
@@ -105,7 +105,7 @@ export function agreeItem(doc: Y.Doc, itemId: string, opts: { by: Person; note?:
     agreementsMap(doc).set(itemId, { item: itemId, ...(prev?.decision ? { decision: prev.decision } : {}), snapshot: snapshotOf(f, at), accepts });
     reviewsMap(doc).delete(itemId);
     const layout = layoutMap(doc);
-    if (!layout.has(snapId(itemId))) layout.set(snapId(itemId), nextItemSpot(doc, f.frame, { area: 'agreed', h: estimateCardH(f.type, f.text) }));
+    if (!layout.has(snapId(itemId))) layout.set(snapId(itemId), boardPlaced(undefined, nextItemSpot(doc, f.frame, { area: 'agreed', h: estimateCardH(f.type, f.text) })));
   });
   return true;
 }

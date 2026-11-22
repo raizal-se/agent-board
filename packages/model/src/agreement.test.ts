@@ -50,7 +50,7 @@ describe('agree on a block', () => {
     expect(stateOf(a)).toBe('agreed');
     expect(changedAfterAgreement(fileItemOf(doc, 'api')!, a)).toBe(false);
     // The live block stays where it is; the snapshot card gets the first spot in Agreed.
-    expect(layoutMap(doc).get(snapId('api'))).toEqual({ x: AREA_PAD, y: AREA_TOP });
+    expect(layoutMap(doc).get(snapId('api'))).toEqual({ x: AREA_PAD, y: AREA_TOP, placedBy: 'board' });
     expect(stateOf(agreementsMap(doc).get('flow'))).toBe('draft');
   });
 
