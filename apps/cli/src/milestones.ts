@@ -1,17 +1,18 @@
 import { parseMilestoneFile } from '@agent-board/formats';
-import { fileItems, importMilestone, milestoneFromFile } from '@agent-board/model';
+import { fileItems, importMilestone, isDroppedImport, milestoneFromFile } from '@agent-board/model';
 import type * as Y from 'yjs';
 
 /**
  * Import each milestone file that has no milestone yet (design 5.5): one milestone with one draft
- * story per entry, in the file's frame. A file is read once: after that, its stories belong to the
+ * story per entry, in the file's frame. If a person deleted the milestone of a file, the CLI does not
+ * import that file again: the person clicks "import". A file is read once: after that, its stories belong to the
  * people on the board, and new entries come in only when a person clicks "import new entries".
  * Returns the ids of the milestones made.
  */
 export function importMilestoneFiles(doc: Y.Doc, log: (line: string) => void = () => {}): string[] {
   const made: string[] = [];
   for (const f of fileItems(doc)) {
-    if (f.gone || f.type !== 'markdown' || milestoneFromFile(doc, f.id)) continue;
+    if (f.gone || f.type !== 'markdown' || milestoneFromFile(doc, f.id) || isDroppedImport(doc, f.id)) continue;
     const parsed = parseMilestoneFile(f.path, f.text);
     if (!parsed) continue;
     const r = importMilestone(doc, f, parsed);

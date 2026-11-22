@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { editStory, milestonesMap, storiesMap, type BoardExport } from '@agent-board/model';
+import { deleteMilestone, deleteStory, editStory, milestonesMap, storiesMap, type BoardExport } from '@agent-board/model';
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { startBoard, type RunningBoard } from './board';
@@ -77,6 +77,36 @@ describe('milestone files', () => {
     expect(milestonesMap(b2.doc).size).toBe(1);
     expect(storiesMap(b2.doc).size).toBe(2);
     expect(storiesMap(b2.doc).get('story-1')?.title).toBe('Payment first');
+  });
+
+  it('a deleted milestone or story does not come back: not on save, not after a restart', async () => {
+    const folder = tempDir('ab-ms-');
+    write(folder, 'checkout/milestone-1.md', MILESTONE);
+    write(folder, 'checkout/flow.md', '# Flow');
+    const b1 = await board(folder);
+    const doc = b1.doc;
+    await until(() => storiesMap(doc).size === 2, 3000, 'stories');
+    deleteStory(doc, 'story-1');
+    expect(storiesMap(doc).get('story-2')?.blockedBy).toEqual([]);
+    const exported = () => JSON.parse(readFileSync(join(folder, STATE_DIR, EXPORT_FILE), 'utf8')) as BoardExport;
+    await until(() => exported().stories.length === 1, 3000, 'export without the story');
+
+    deleteMilestone(doc, [...milestonesMap(doc).keys()][0]!, { by: 'arif' });
+    // The agent saves the file again: the CLI does not import it again by itself.
+    write(folder, 'checkout/milestone-1.md', MILESTONE + '\n');
+    await until(() => itemAt(doc, 'checkout/milestone-1.md')?.text.endsWith('\n\n'), 3000, 'saved');
+    await new Promise((r) => setTimeout(r, 600));
+    expect(milestonesMap(doc).size).toBe(0);
+    expect(storiesMap(doc).size).toBe(0);
+    await until(() => exported().milestones.length === 0 && exported().stories.length === 0, 3000, 'export without the milestone');
+    await until(() => milestonesMap(loadDoc(join(folder, STATE_DIR, DOC_FILE))).size === 0, 3000, 'saved to disk');
+    await b1.stop();
+    cleanup.length = 0;
+
+    const b2 = await board(folder);
+    await new Promise((r) => setTimeout(r, 600));
+    expect(milestonesMap(b2.doc).size).toBe(0);
+    expect(storiesMap(b2.doc).size).toBe(0);
   });
 
   it('a file that is not a milestone file is a plain card', async () => {
