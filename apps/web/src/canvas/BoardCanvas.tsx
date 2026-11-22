@@ -29,7 +29,7 @@ export interface Selection {
 export interface Viewport {
   /** The scene point in the middle of the screen. */
   center(): { x: number; y: number };
-  /** Select these elements (and nothing else). */
+  /** Select these elements (and nothing else), once they are on the canvas. */
   select(ids: string[]): void;
 }
 
@@ -142,11 +142,22 @@ export const BoardCanvas = memo(function BoardCanvas({
         const s = api.getAppState();
         return { x: -s.scrollX + s.width / 2 / s.zoom.value, y: -s.scrollY + s.height / 2 / s.zoom.value };
       },
-      select: (ids) =>
-        api.updateScene({
-          appState: { selectedElementIds: Object.fromEntries(ids.map((id) => [id, true as const])) },
-          captureUpdate: CaptureUpdateAction.NEVER,
-        }),
+      select: (ids) => {
+        // A new item reaches the canvas with the next merge: wait for it (a few frames at most).
+        let frames = 0;
+        const go = () => {
+          const on = new Set(api.getSceneElements().map((e) => e.id));
+          if (ids.some((id) => !on.has(id)) && frames++ < 30) {
+            requestAnimationFrame(go);
+            return;
+          }
+          api.updateScene({
+            appState: { selectedElementIds: Object.fromEntries(ids.filter((id) => on.has(id)).map((id) => [id, true as const])) },
+            captureUpdate: CaptureUpdateAction.NEVER,
+          });
+        };
+        go();
+      },
     });
     return () => {
       stop();

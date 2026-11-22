@@ -3,10 +3,7 @@ import {
   addSticky,
   agree,
   deleteHumanEdge,
-  FRAME_HEADER,
   setEdgeLabel,
-  STICKY_H,
-  STICKY_W,
   type FileItem,
   type Person,
 } from '@agent-board/model';
@@ -19,7 +16,8 @@ import { TextDialog } from './blocks/TextDialog';
 import { ThreadPanel } from './blocks/ThreadPanel';
 import { BoardActionsContext, type BoardActions } from './board/actions';
 import type { BoardConnection } from './board/connection';
-import { nameOf, views, type FrameView } from './board/derive';
+import { nameOf, views } from './board/derive';
+import { noteSpot } from './board/place';
 import { useBoardState } from './board/useBoard';
 import { BoardCanvas, type Selection, type Viewport } from './canvas/BoardCanvas';
 import { ViewsContext } from './canvas/embeds';
@@ -39,15 +37,6 @@ type Ask =
   | { kind: 'link'; from: string; to: string }
   | { kind: 'agree'; covers: string[] }
   | { kind: 'label'; edge: string; initial: string };
-
-interface Point {
-  x: number;
-  y: number;
-}
-
-function frameAt(frames: FrameView[], p: Point): FrameView | undefined {
-  return frames.find((f) => p.x >= f.x && p.x <= f.x + f.w && p.y >= f.y && p.y <= f.y + f.h);
-}
 
 const NONE: Selection = { items: [], link: null };
 
@@ -80,15 +69,10 @@ export function App({ conn }: { conn: BoardConnection }) {
     [doc, me, viewport],
   );
 
-  /** A new note in the middle of the view: inside the frame there, or on its own. */
+  /** A new note in the middle of the view (inside the frame there, clear of its blocks), selected. */
   const addNoteInView = useCallback(() => {
-    const c = viewport?.center() ?? { x: 0, y: 0 };
-    const at = { x: Math.round(c.x - STICKY_W / 2), y: Math.round(c.y - STICKY_H / 2) };
-    const frame = frameAt(v.frames, c);
-    const id = frame
-      ? addSticky(doc, { by: me, frame: frame.frame.id, x: at.x - frame.x, y: Math.max(FRAME_HEADER, at.y - frame.y) })
-      : addSticky(doc, { by: me, frame: null, x: at.x, y: at.y });
-    requestAnimationFrame(() => viewport?.select([id]));
+    const id = addSticky(doc, { by: me, ...noteSpot(doc, v.frames, viewport?.center() ?? { x: 0, y: 0 }) });
+    viewport?.select([id]);
   }, [doc, me, v.frames, viewport]);
 
   const clearSelection = useCallback(() => viewport?.select([]), [viewport]);
