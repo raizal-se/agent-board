@@ -126,6 +126,7 @@ export const BoardCanvas = memo(function BoardCanvas({
   onReady,
   cursors,
   onPointer,
+  onDeleteKey,
 }: {
   doc: Y.Doc;
   onSelection: (s: Selection) => void;
@@ -136,6 +137,11 @@ export const BoardCanvas = memo(function BoardCanvas({
   cursors?: readonly CursorOf[];
   /** This person's pointer moved (scene coordinates). */
   onPointer?: (p: { x: number; y: number }) => void;
+  /**
+   * Delete or Backspace with stories or milestones selected. The canvas does not delete them: the
+   * page asks first. Without it, the canvas deletes them at once.
+   */
+  onDeleteKey?: (ids: string[]) => void;
 }) {
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
 
@@ -231,6 +237,30 @@ export const BoardCanvas = memo(function BoardCanvas({
       window.removeEventListener('pointercancel', up);
     };
   }, [api, doc, onReady, onViewport]);
+
+  // Delete or Backspace on selected stories or milestones: ask first. This listener is on the
+  // window in the capture phase, so it runs before Excalidraw's own key handler (on the document).
+  useEffect(() => {
+    if (!api || !onDeleteKey) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.closest('[role="dialog"]'))) return;
+      const app = api.getAppState();
+      if (app.editingTextElement) return;
+      const byId = new Map(api.getSceneElements().map((el) => [el.id, el as unknown as El]));
+      const ids = Object.keys(app.selectedElementIds).filter((id) => {
+        const k = kindOf(byId.get(id));
+        return k === 'story' || k === 'milestone';
+      });
+      if (ids.length === 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onDeleteKey(ids);
+    };
+    window.addEventListener('keydown', onKey, { capture: true });
+    return () => window.removeEventListener('keydown', onKey, { capture: true });
+  }, [api, onDeleteKey]);
 
   const onChange = useCallback(
     (elements: readonly ExcalidrawElement[], appState: AppState) => {

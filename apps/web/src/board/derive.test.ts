@@ -18,7 +18,7 @@ import {
   type StoryItem,
 } from '@agent-board/model';
 import { describe, expect, it } from 'vitest';
-import { agentColor, views } from './derive';
+import { agentColor, deleteQuestion, views } from './derive';
 
 function item(id: string, path: string, frame: string, extra: Partial<FileItem> = {}): FileItem {
   return { id, kind: 'file', path, frame, type: 'markdown', text: '', hash: '', owner: 'me', gone: false, updatedAt: 0, ...extra };
@@ -219,5 +219,24 @@ describe('stories and milestones', () => {
     expect(views({ ...base, milestones: [m], stories: [st('story-1', 1)] }).blocks.get('mf')!.milestoneFile).toEqual({ milestone: 'm1', stories: 1, fresh: 1 });
     expect(views(base).blocks.get('mf')!.item.path).toBe('a/milestone-1.md');
     expect(views({ ...base, items: [item('n', 'a/notes.md', 'frame:a')] }).blocks.get('n')!.milestoneFile).toBeUndefined();
+  });
+});
+
+describe('deleteQuestion', () => {
+  const m = { id: 'm1', number: 1, name: 'Pay by card' };
+  const st = (n: number, title = '') => ({ id: `story-${n}`, number: n, title, milestone: 'm1' });
+  const stories = [st(1, 'Payment ready'), st(2), st(3, 'Pay by card'), st(4)];
+  it('names one story with its number and title', () => {
+    expect(deleteQuestion(['story-3'], stories, [m])).toEqual({ title: 'Delete story', text: "Delete Story 3 'Pay by card'? This can not be undone." });
+    expect(deleteQuestion(['story-2'], stories, [m])?.text).toBe('Delete Story 2? This can not be undone.');
+  });
+  it('says how many stories go with a milestone', () => {
+    expect(deleteQuestion(['m1'], stories, [m])).toEqual({ title: 'Delete milestone', text: "Delete Milestone 1 'Pay by card' and its 4 stories? This can not be undone." });
+    expect(deleteQuestion(['m1', 'story-1'], stories, [m])?.text).toBe("Delete Milestone 1 'Pay by card' and its 4 stories? This can not be undone.");
+    expect(deleteQuestion(['m1'], [], [m])?.text).toBe("Delete Milestone 1 'Pay by card'? This can not be undone.");
+  });
+  it('counts more than one', () => {
+    expect(deleteQuestion(['story-1', 'story-2'], stories, [m])?.text).toBe('Delete 2 stories? This can not be undone.');
+    expect(deleteQuestion(['x'], stories, [m])).toBeNull();
   });
 });

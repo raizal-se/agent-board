@@ -67,6 +67,7 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn-agree { background: #16A34A; border-color: #16A34A; color: #fff; font-weight: 600; }
 .btn-danger { color: var(--danger); border-color: #e7b4b0; }
+.btn-danger-solid { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 600; }
 .board-header { flex-wrap: wrap; max-width: calc(100vw - 24px); }
 .selection-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; box-shadow: 0 2px 8px rgb(0 0 0 / 8%); max-width: calc(100vw - 24px); }
 .selection-count { color: var(--muted); padding: 0 4px; }
@@ -156,6 +157,8 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 .dialog-field { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 12px; }
 .dialog-field input, .dialog-field textarea { font: inherit; font-size: 14px; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; min-height: 36px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.dialog-aside { margin-right: auto; }
+.dialog-text { font-size: 14px; line-height: 1.4; }
 
 @media (max-width: 640px) {
   .board-header { font-size: 12px; }

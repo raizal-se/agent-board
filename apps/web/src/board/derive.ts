@@ -206,6 +206,39 @@ export const storyEdgeId = (blocker: string, story: string) => `${blocker}~block
 /** Stories are named by number: "Story 3". */
 export const storyName = (s: Pick<StoryItem, 'number' | 'title'>, withTitle = true) => `Story ${s.number}${withTitle && s.title ? ` · ${s.title}` : ''}`;
 export const milestoneName = (m: Pick<MilestoneItem, 'number' | 'name'>) => `Milestone ${m.number}${m.name ? ` · ${m.name}` : ''}`;
+const quoted = (t: string) => (t ? ` '${t}'` : '');
+const nStories = (n: number) => `${n} ${n === 1 ? 'story' : 'stories'}`;
+
+/**
+ * The question before a delete of stories and milestones: "Delete Story 3 'Pay by card'? This can
+ * not be undone." A milestone says how many stories go with it.
+ */
+export function deleteQuestion(
+  ids: readonly string[],
+  stories: readonly Pick<StoryItem, 'id' | 'number' | 'title' | 'milestone'>[],
+  milestones: readonly Pick<MilestoneItem, 'id' | 'number' | 'name'>[],
+): { title: string; text: string } | null {
+  const ms = milestones.filter((m) => ids.includes(m.id));
+  const gone = new Set(ms.map((m) => m.id));
+  // A story in a selected milestone goes with the milestone.
+  const sts = stories.filter((st) => ids.includes(st.id) && !gone.has(st.milestone));
+  const withM = stories.filter((st) => gone.has(st.milestone)).length;
+  const end = '? This can not be undone.';
+  if (ms.length === 0 && sts.length === 0) return null;
+  if (ms.length === 0 && sts.length === 1) {
+    const st = sts[0]!;
+    return { title: 'Delete story', text: `Delete Story ${st.number}${quoted(st.title)}${end}` };
+  }
+  if (ms.length === 1 && sts.length === 0) {
+    const m = ms[0]!;
+    return { title: 'Delete milestone', text: `Delete Milestone ${m.number}${quoted(m.name)}${withM ? ` and its ${nStories(withM)}` : ''}${end}` };
+  }
+  const parts: string[] = [];
+  if (ms.length) parts.push(`${ms.length} ${ms.length === 1 ? 'milestone' : 'milestones'}${withM ? ` with ${nStories(withM)}` : ''}`);
+  if (sts.length) parts.push(nStories(sts.length));
+  return { title: 'Delete', text: `Delete ${parts.join(' and ')}${end}` };
+}
+
 export const AREA_LABEL: Record<Area, string> = { product: 'Product', engineering: 'Engineering', agreed: 'Agreed', milestone: 'Milestone' };
 /** How the web agrees: one person's accept is enough (as for cards). */
 export const AGREE_MODE = 'solo' as const;

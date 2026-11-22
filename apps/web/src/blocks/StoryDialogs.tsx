@@ -2,7 +2,27 @@ import type { StorySize } from '@agent-board/model';
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 
 /** The frame of a dialog: Esc and a press-and-release on the backdrop cancel. */
-function Dialog({ title, testId, onCancel, onSubmit, children, submit }: { title: string; testId: string; onCancel: () => void; onSubmit: () => void; children: ReactNode; submit: string }) {
+function Dialog({
+  title,
+  testId,
+  onCancel,
+  onSubmit,
+  children,
+  submit,
+  danger,
+  aside,
+}: {
+  title: string;
+  testId: string;
+  onCancel: () => void;
+  onSubmit: () => void;
+  children: ReactNode;
+  submit: string;
+  /** The submit button deletes something. It gets the focus: Esc cancels, Enter confirms. */
+  danger?: boolean;
+  /** A button at the left of the actions (a delete). */
+  aside?: ReactNode;
+}) {
   const pressedOutside = useRef(false);
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -33,10 +53,11 @@ function Dialog({ title, testId, onCancel, onSubmit, children, submit }: { title
         <h2 className="dialog-title">{title}</h2>
         <div className="dialog-scroll">{children}</div>
         <div className="dialog-actions">
+          {aside && <div className="dialog-aside">{aside}</div>}
           <button type="button" className="btn" onClick={onCancel}>
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary" data-testid="dialog-save">
+          <button type="submit" className={`btn ${danger ? 'btn-danger-solid' : 'btn-primary'}`} data-testid="dialog-save" autoFocus={danger}>
             {submit}
           </button>
         </div>
@@ -102,6 +123,7 @@ export function StoryDialog({
   hasAccepts,
   onSubmit,
   onCancel,
+  onDelete,
 }: {
   title: string;
   initial: StoryFields;
@@ -110,13 +132,28 @@ export function StoryDialog({
   hasAccepts: boolean;
   onSubmit: (f: StoryFields) => void;
   onCancel: () => void;
+  /** "Delete story": the page asks first. */
+  onDelete?: () => void;
 }) {
   const [f, setF] = useState<StoryFields>(initial);
   const first = useFocusFirst();
   const set = <K extends keyof StoryFields>(k: K, v: StoryFields[K]) => setF((o) => ({ ...o, [k]: v }));
   const resets = hasAccepts && (f.title.trim() !== initial.title || f.story.trim() !== initial.story || f.check.trim() !== initial.check || f.size !== initial.size);
   return (
-    <Dialog title={title} testId="story-dialog" submit="Save" onCancel={onCancel} onSubmit={() => onSubmit(f)}>
+    <Dialog
+      title={title}
+      testId="story-dialog"
+      submit="Save"
+      onCancel={onCancel}
+      onSubmit={() => onSubmit(f)}
+      aside={
+        onDelete && (
+          <button type="button" className="btn btn-danger" data-testid="story-delete" onClick={onDelete}>
+            Delete story
+          </button>
+        )
+      }
+    >
       <label className="dialog-field">
         <span>Short title</span>
         <input ref={first} name="title" value={f.title} onChange={(e) => set('title', e.target.value)} />
@@ -158,10 +195,13 @@ export function MilestoneDialog({
   initial,
   onSubmit,
   onCancel,
+  onDelete,
 }: {
   initial: { number: number; name: string; goal: string };
   onSubmit: (f: { number: number; name: string; goal: string }) => void;
   onCancel: () => void;
+  /** "Delete milestone": the page asks first. */
+  onDelete?: () => void;
 }) {
   const [number, setNumber] = useState(String(initial.number));
   const [name, setName] = useState(initial.name);
@@ -170,7 +210,20 @@ export function MilestoneDialog({
   const n = Number(number);
   const ok = Number.isInteger(n) && n >= 1;
   return (
-    <Dialog title="Milestone" testId="milestone-dialog" submit="Save" onCancel={onCancel} onSubmit={() => ok && onSubmit({ number: n, name, goal })}>
+    <Dialog
+      title="Milestone"
+      testId="milestone-dialog"
+      submit="Save"
+      onCancel={onCancel}
+      onSubmit={() => ok && onSubmit({ number: n, name, goal })}
+      aside={
+        onDelete && (
+          <button type="button" className="btn btn-danger" data-testid="milestone-delete" onClick={onDelete}>
+            Delete milestone
+          </button>
+        )
+      }
+    >
       <label className="dialog-field">
         <span>Name</span>
         <input ref={first} name="name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -237,6 +290,17 @@ export function ChooseDialog({ title, label, choices, empty, onPick, onCancel }:
             ))}
           </div>
         )}
+      </div>
+    </Dialog>
+  );
+}
+
+/** "Are you sure?" before a delete: the question, Cancel, and a red Delete button. */
+export function ConfirmDialog({ title, text, confirm, onConfirm, onCancel }: { title: string; text: string; confirm: string; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <Dialog title={title} testId="confirm-dialog" submit={confirm} danger onCancel={onCancel} onSubmit={onConfirm}>
+      <div className="dialog-text" data-testid="confirm-text">
+        {text}
       </div>
     </Dialog>
   );

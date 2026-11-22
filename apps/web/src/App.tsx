@@ -16,6 +16,8 @@ import {
   setCovers,
   BLOCK_W,
   deleteHumanEdge,
+  deleteMilestone,
+  deleteStory,
   isSnapId,
   layoutMap,
   rejectItem,
@@ -33,8 +35,8 @@ import { TextDialog } from './blocks/TextDialog';
 import { ThreadPanel } from './blocks/ThreadPanel';
 import { BoardActionsContext, type BoardActions } from './board/actions';
 import type { BoardConnection } from './board/connection';
-import { AREA_LABEL, nameOf, milestoneName, storyName, views } from './board/derive';
-import { ChooseDialog, MilestoneDialog, PickDialog, StoryDialog, type Choice } from './blocks/StoryDialogs';
+import { AREA_LABEL, deleteQuestion, nameOf, milestoneName, storyName, views } from './board/derive';
+import { ChooseDialog, ConfirmDialog, MilestoneDialog, PickDialog, StoryDialog, type Choice } from './blocks/StoryDialogs';
 import { noteSpot } from './board/place';
 import { useBoardState } from './board/useBoard';
 import { useNarrow } from './canvas/bars';
@@ -73,7 +75,9 @@ type Ask =
   | { kind: 'story'; story: string }
   | { kind: 'covers'; story: string }
   | { kind: 'milestone'; milestone: string }
-  | { kind: 'add-to-story'; item: string };
+  | { kind: 'add-to-story'; item: string }
+  /** Stories and milestones to delete, after the person says yes. */
+  | { kind: 'delete'; ids: string[] };
 
 const NONE: Selection = { items: [], link: null };
 
@@ -167,6 +171,7 @@ export function App({ conn }: { conn: BoardConnection }) {
   }, [doc, me, v.frames, viewport]);
 
   const clearSelection = useCallback(() => viewport?.select([]), [viewport]);
+  const askDelete = useCallback((ids: string[]) => setAsk({ kind: 'delete', ids }), []);
 
   const byId = useMemo(() => {
     const m = new Map<string, Parameters<typeof nameOf>[0]>();
@@ -275,7 +280,7 @@ export function App({ conn }: { conn: BoardConnection }) {
     <BoardActionsContext.Provider value={actions}>
       <ViewsContext.Provider value={v}>
         <div className="board-root">
-          <BoardCanvas doc={doc} onSelection={setSel} onViewport={setViewport} cursors={cursors} onPointer={onPointer} />
+          <BoardCanvas doc={doc} onSelection={setSel} onViewport={setViewport} cursors={cursors} onPointer={onPointer} onDeleteKey={askDelete} />
           <div className="board-overlay board-overlay-top">
             <div className="board-header">
               <strong>{state.name || 'agent-board'}</strong>
@@ -365,6 +370,7 @@ export function App({ conn }: { conn: BoardConnection }) {
                 blockers={blockers}
                 hasAccepts={st.accepts.length > 0}
                 onCancel={() => setAsk(null)}
+                onDelete={() => askDelete([st.id])}
                 onSubmit={(f) => {
                   doc.transact(() => {
                     editStory(doc, st.id, { title: f.title, story: f.story, check: f.check, size: f.size, owner: f.owner });
@@ -412,6 +418,7 @@ export function App({ conn }: { conn: BoardConnection }) {
               <MilestoneDialog
                 initial={{ number: m.number, name: m.name, goal: m.goal }}
                 onCancel={() => setAsk(null)}
+                onDelete={() => askDelete([m.id])}
                 onSubmit={(f) => {
                   if (editMilestone(doc, m.id, f)) setAsk(null);
                 }}
@@ -439,6 +446,26 @@ export function App({ conn }: { conn: BoardConnection }) {
                 onPick={(id) => {
                   addCover(doc, id, f.id);
                   setAsk(null);
+                }}
+              />
+            );
+          })()}
+        {ask?.kind === 'delete' &&
+          (() => {
+            const q = deleteQuestion(ask.ids, state.stories, state.milestones);
+            if (!q) return null;
+            return (
+              <ConfirmDialog
+                title={q.title}
+                text={q.text}
+                confirm="Delete"
+                onCancel={() => setAsk(null)}
+                onConfirm={() => {
+                  doc.transact(() => {
+                    for (const id of ask.ids) if (!deleteMilestone(doc, id, { by: me.name })) deleteStory(doc, id);
+                  });
+                  setAsk(null);
+                  clearSelection();
                 }}
               />
             );
