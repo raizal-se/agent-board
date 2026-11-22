@@ -90,6 +90,9 @@ export class BoardSync {
     this.flushTimer = setTimeout(() => {
       this.flushTimer = null;
       this.flush();
+      // Lay the doc back over the canvas: a change the doc refused (a deleted or copied file block)
+      // is put back now, not at the next doc update. A merge with nothing new pushes nothing.
+      if (!inGesture(this.api.getAppState(), this.pointerDown)) this.schedule();
     }, 120);
   }
 

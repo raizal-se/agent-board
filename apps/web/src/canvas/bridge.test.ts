@@ -320,6 +320,27 @@ describe('locked file items', () => {
     expect(canvas.get('fe:x->a/y.md#').isDeleted).toBe(false);
   });
 
+  it('a block deleted with the Delete key comes back on its own, with no doc change to trigger it', () => {
+    // The canvas has settled: Excalidraw has checked the embeds (see the embed link test below).
+    sync.changed();
+    vi.runAllTimers();
+    canvas.edit('x', { isDeleted: true });
+    canvas.edit('fe:x->a/y.md#', { isDeleted: true });
+    let docUpdates = 0;
+    doc.on('update', () => docUpdates++);
+    sync.changed();
+    vi.runAllTimers();
+    expect(docUpdates).toBe(0);
+    expect(canvas.get('x').isDeleted).toBe(false);
+    expect(canvas.get('fe:x->a/y.md#').isDeleted).toBe(false);
+    expect(layoutOf('x')).toEqual({ x: 32, y: 76 });
+    // Settled: nothing more is pushed.
+    const pushes = sync.pushes;
+    sync.changed();
+    vi.runAllTimers();
+    expect(sync.pushes).toBe(pushes);
+  });
+
   it('a copy of a block (Ctrl+D, paste) moves nothing, is not kept, and leaves the canvas', () => {
     const x = canvas.get('x');
     canvas.add({ ...x, id: 'copy-of-x', x: x.x + 500, y: x.y + 500, version: 1, versionNonce: 1 });
