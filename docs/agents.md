@@ -22,6 +22,33 @@ Everything you write in that folder shows on their board within a second.
 - Renaming or moving a file keeps its block, its place and its links. Keep the content the same when you rename.
 - Deleting a file hides its block. Writing the file again brings the block back in the same place.
 
+## Which area a block goes in
+
+Each frame is split into four areas: Product (top left), Engineering (top right), Agreed (bottom left) and Milestone (bottom right).
+Your file's block goes in Product or Engineering.
+
+In markdown, set `area` in the front matter:
+
+```markdown
+---
+area: engineering
+---
+# Payment API
+```
+
+In HTML, add a meta tag:
+
+```html
+<meta name="board:area" content="product">
+```
+
+- The value is `product` or `engineering`. Any other value is ignored.
+- Without `area`, the block goes to the side of the person whose CLI watches the file.
+- A new block gets a free spot in its area once. After that, only people move it. Saving the file does not move it.
+- A person can move your block to the other area with the switch on the block. The board shows that in `board.json` as `area_source: "human"`.
+- **If a human moved your block, do not change `area` back unless asked.** A new `area` value in the file wins over the person's move, so change it only when you mean to.
+- Agreed and Milestone are for people. You cannot put a block there.
+
 ## Links between files
 
 A link draws an arrow from one block to another.
@@ -67,12 +94,12 @@ If the diagram has an error, the block shows the source and the error. Fix the f
 - Each page runs in a sandbox with scripts on and no access to the board.
 - Do not use localStorage, sessionStorage, cookies or IndexedDB. They do not work there, and the page may break.
 - Keep the page in one file. Inline your CSS and scripts. Links to a public CDN work.
-- Design for a desktop width of about 1280 px. The thumbnail shows the top 1280 × 800.
+- The thumbnail lays the page out about 860 px wide and shows its full height, up to a cap. Make it read well at that width. The person can open it full size.
 - Thumbnails take no clicks. The person opens the page to click through it.
 
 ## Reading the board
 
-People think on the board too. They add sticky notes, comment on blocks, draw links and agree on what is done.
+People think on the board too. They add sticky notes, comment on blocks, draw links, and agree on or reject blocks.
 To see that, read `.agent-board/board.json` in the root.
 
 - The board rewrites the file about 300 ms after each change. It writes a temp file and renames it, so you never read half a file.
@@ -96,22 +123,27 @@ Top level: `format` (`"agent-board/1"`), `agreement_mode` (`"solo"`: one person'
 | `path` | Files: the path from the root. Stickies: `null`. |
 | `frame` | Frame id. A sticky outside any frame has `null`. |
 | `state` | `"draft"` or `"agreed"`. |
-| `zone` | `"product"`, `"engineering"` or `"agreed"`. It comes from the state and the author's side, never from the position. |
+| `area` | Files: `"product"` or `"engineering"`, the area the block is in. It never comes from the position. Stickies: `null`. |
+| `area_source` | Files: `"file"` (your `area` value), `"owner side"` (no value: the watcher's side) or `"human"` (a person moved it). |
+| `area_set_by`, `area_set_at` | When `area_source` is `"human"`: who moved it, and when. Otherwise `null`. |
 | `author`, `author_kind` | Files: `"<owner>'s agent"`, `"agent"`. Stickies: the person's name, `"human"`. |
 | `owner` | Files: the person whose CLI watches the file. |
 | `gone` | Files: the file was deleted. |
 | `content` | The text now. |
 | `snapshot` | Agreed files: `{content, agreed_at, decision, accepts}`, the text as it was agreed. It never changes until people agree again. Otherwise `null`. |
 | `changed_after_agreement` | `true` when the file changed after it was agreed and nobody has looked yet. |
+| `review` | After a reject: `{state, by, at, reason}`. `state` is `"changes requested"` until you save the file with new content, then `"updated, review again"`. Otherwise `null`. Agreeing clears it. |
 
 `edges`: `id`, `source` (`"file"`: a link in a file; `"human"`: a person drew it), `from`, `to` (item ids; `to` is `null` while the target file is missing), `to_path` (file links), `label`, `author` (drawn links).
 
-`comments`: one entry per thread: `target` (the item id), `resolved`, `resolved_by`, and `comments` with `id`, `author`, `text`, `at`.
+`comments`: one entry per thread: `target` (the item id), `resolved`, `resolved_by`, and `comments` with `id`, `author`, `verdict`, `text`, `entry`, `at`.
+`verdict` is `"agree"`, `"reject"` or `null` (a plain comment). `entry` is how the line reads on the board: `"✓ Raizal agreed"`, `"✗ Raizal rejected: <reason>"`, or the comment.
 
-`decisions`: `id`, `frame`, `text` (what was agreed), `covers` (item ids), `accepts` (`name`, `side`, `at`), `agreed`, `author`, `created_at`.
+`decisions`: agreements made on older boards, before agreeing on a block: `id`, `frame`, `text`, `covers` (item ids), `accepts` (`name`, `side`, `at`), `agreed`, `author`, `created_at`.
 
 ### What to do with it
 
 - An open thread on your file is a question or a request. Read it before you change the file.
 - A sticky in a frame is a note about that topic. Take it into account. Do not copy it into your files unless asked.
+- A block marked "changes requested" has a reason in its thread. Change the file to answer it. Saving it marks the block "updated, review again".
 - An agreed file is a promise. Before you change it, tell the person. After you change it, the board marks it "changed after agreement" and they decide whether to keep the old agreement or agree again.
