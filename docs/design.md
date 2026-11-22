@@ -3,6 +3,14 @@
 Status: agreed in a grilling session on 2026-11-20, updated on 2026-11-21 after the screen
 review. Nothing is built yet. "agent-board" is a working name.
 
+## What changed on 2026-11-22
+
+- The canvas is **Excalidraw**, not React Flow (section 11). The Yjs doc stays the source of truth.
+- A feature board is **one big frame with four areas**: Product, Engineering, Agreed, Milestone.
+  A file says its area with `area:` front matter or the `board:area` meta tag; a person can switch it.
+- **Agree and reject are buttons on the card**. Agree takes a snapshot, shown as a snapshot card in
+  the Agreed area. Reject needs a reason. Both are entries in the card's comment thread.
+
 ## What changed on 2026-11-21
 
 - New rule: **layout is free, meaning is in the fields** (section 3.1).
@@ -346,10 +354,13 @@ The CLI runs on each person's laptop.
 
 ## 11. Stack
 
-- **Canvas:** [xyflow / React Flow](https://reactflow.dev) (MIT). Blocks, story blocks, frames and
-  labeled edges are custom nodes and edges.
-- **Sync:** Yjs. React Flow's own multiplayer guide shows how to sync nodes and edges with Yjs. Its
-  official example uses a WebSocket server, so the WebRTC wiring is our own work.
+- **Canvas:** [Excalidraw](https://github.com/excalidraw/excalidraw) 0.18 (MIT), self-hosted with
+  its fonts in our build. Each folder is an Excalidraw frame split into four areas. File blocks are
+  locked embeddables that render our own markdown, mermaid and HTML blocks. Notes, shapes and arrows
+  are Excalidraw's own tools.
+- **Sync:** Yjs. **The Yjs doc is the source of truth; Excalidraw is only the view.** A bridge
+  (`apps/web/src/canvas/sync.ts`) maps the doc to scene elements and back, never moves an element
+  the user is dragging, and never echoes its own writes.
 - **Mermaid:** Pele.
 - **Peer discovery:** Trystero.
 
@@ -357,8 +368,9 @@ The CLI runs on each person's laptop.
 
 - **tldraw** has the best canvas, but production use needs a paid license key, and its sync uses a
   server.
-- **Excalidraw** is MIT and has native sketching and the best mermaid converter. But markdown and
-  card blocks need a custom embed renderer, which is untested, and its Yjs binding is immature.
+- **xyflow / React Flow** was the first canvas (slices 1 and 2). We left it on 2026-11-22: building a
+  free whiteboard (drawing, notes, arrows, selection, touch) on it meant rebuilding Excalidraw.
+  Excalidraw's custom embed renderer worked for our blocks (spike, 2026-11-22).
 - **AFFiNE / BlockSuite** is too heavy to extract.
 - **No open-source project** covers most of this design. These projects are worth reading:
   - [doop](https://github.com/kgoedecke/doop) (AGPL): sandboxed HTML frames, per-frame history, MCP tools.
@@ -403,7 +415,7 @@ The CLI runs on each person's laptop.
 
 The spike must prove these points before the build starts:
 
-1. A markdown block with a mermaid diagram (rendered by Pele) lives inside a frame on xyflow, and it
+1. A markdown block with a mermaid diagram (rendered by Pele) lives inside a frame on the canvas, and it
    updates live when its file changes.
 2. A sandboxed HTML block works inside the same frame. **Five or more HTML thumbnails on screen at
    once** stay smooth (one story map has several previews).

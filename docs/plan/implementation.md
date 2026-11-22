@@ -30,7 +30,7 @@ A pnpm monorepo, TypeScript everywhere.
 | `packages/model` | The Yjs document schema, the types, all field rules, the JSON export | browser, Node |
 | `packages/formats` | Parsers: front matter links, `board:link` meta tags, milestone markdown | browser, Node |
 | `packages/sync` | Trystero room, Yjs sync over Trystero, forwarding, device keys, the join handshake | browser, Node |
-| `apps/web` | Vite + React + xyflow. The canvas, blocks, story blocks, panels | browser |
+| `apps/web` | Vite + React + Excalidraw. The canvas, blocks, story blocks, panels | browser |
 | `apps/cli` | `agent-board`: setup, join, watch, export, stories import | Node |
 
 `apps/web` builds to static files for Cloudflare Pages. It has no server code.
@@ -126,7 +126,7 @@ Sizes are guesses. An owner is set in the planning session.
 Goal: we know the network plan works, before we build on it.
 
 ## Mermaid block in a frame
-- story: As an engineer, I want a markdown block with a Pele mermaid diagram inside an xyflow frame, so that we know the canvas can hold our blocks.
+- story: As an engineer, I want a markdown block with a Pele mermaid diagram inside a canvas frame, so that we know the canvas can hold our blocks.
 - size: S
 - owner:
 - covers: design.md
