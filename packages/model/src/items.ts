@@ -20,6 +20,11 @@ export interface FileItem {
   text: string;
   /** SHA-256 of `text`, hex. Used to detect renames. */
   hash: string;
+  /**
+   * The area the file says it belongs to (front matter `area:` or the `board:area` meta tag), or
+   * null when it says nothing. Missing on boards saved before areas: read as null.
+   */
+  area?: Side | null;
   /** Name of the person whose CLI owns the file. */
   owner: string;
   /** The file was deleted. The block is hidden; its edges and layout stay. */

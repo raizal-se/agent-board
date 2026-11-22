@@ -48,6 +48,9 @@ export interface DecisionItem {
   createdAt: number;
 }
 
+/** An agree or a reject, recorded in the block's thread as a comment with an icon in front. */
+export type Verdict = 'agree' | 'reject';
+
 /** One comment. Each comment is its own entry, so two people commenting at once both keep theirs. */
 export interface CommentItem {
   id: string;
@@ -55,8 +58,11 @@ export interface CommentItem {
   /** The item the thread is on. */
   target: string;
   author: string;
+  /** The comment; for a verdict, the reason (reject) or the optional note (agree). */
   text: string;
   at: number;
+  /** Set when this entry is an agree or a reject of the block. */
+  verdict?: Verdict;
 }
 
 /** Whether the thread on `target` is resolved. Id: `thread:<target>`. */
@@ -193,6 +199,26 @@ export function setThreadResolved(doc: Y.Doc, opts: { target: string; by: Person
       ? { id, kind: 'thread', target: opts.target, resolved: true, by: opts.by.name, at: opts.now ?? Date.now() }
       : { id, kind: 'thread', target: opts.target, resolved: false },
   );
+}
+
+/** Record an agree or a reject in the thread on `target`. It opens a resolved thread again, like a comment. */
+export function addVerdict(doc: Y.Doc, opts: { target: string; by: Person; verdict: Verdict; text?: string; now?: number }): string {
+  const id = nativeId('c');
+  const at = opts.now ?? Date.now();
+  const items = itemsMap(doc);
+  doc.transact(() => {
+    items.set(id, { id, kind: 'comment', target: opts.target, author: opts.by.name, text: (opts.text ?? '').trim(), at, verdict: opts.verdict });
+    const t = items.get(threadId(opts.target));
+    if (isThread(t) && t.resolved) items.set(t.id, { id: t.id, kind: 'thread', target: opts.target, resolved: false });
+  });
+  return id;
+}
+
+/** How a thread entry reads: "✓ Raizal agreed", "✗ Raizal rejected: reason", or the comment. */
+export function entryText(c: Pick<CommentItem, 'author' | 'text' | 'verdict'>): string {
+  if (c.verdict === 'agree') return `✓ ${c.author} agreed${c.text ? `: ${c.text}` : ''}`;
+  if (c.verdict === 'reject') return `✗ ${c.author} rejected: ${c.text}`;
+  return c.text;
 }
 
 /** Comments on `target`, oldest first. */

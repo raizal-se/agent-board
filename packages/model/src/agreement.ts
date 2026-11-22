@@ -1,17 +1,20 @@
 import type * as Y from 'yjs';
-import type { Side, Zone } from './index';
-import { fileItemOf, itemsMap, type FileItem, type FileType } from './items';
-import { DECISION_H, DECISION_W, layoutMap, nextItemSpot } from './layout';
-import { nativeId, type Accept, type DecisionItem, type Person } from './native';
+import { nextItemSpot, snapId } from './area';
+import { fileItemOf, type FileItem, type FileType } from './items';
+import { estimateCardH, layoutMap } from './layout';
+import { addVerdict, type Accept, type Person } from './native';
 
 /**
- * Agreement (design 6). Agreeing on file blocks makes a decision block and gives each covered block
- * a frozen snapshot of its content. The snapshot never changes; when the file changes after that,
- * the block shows "changed after agreement" until a person keeps the snapshot or agrees again.
+ * Agreement (design 6), on the card. "✓ Agree" freezes a snapshot of the block's content: the live
+ * card stays in its area, and a snapshot card shows the frozen content in the Agreed area. The
+ * snapshot never changes; when the file changes after that, both cards show "changed after
+ * agreement" until a person keeps the snapshot or agrees again. "✗ Reject" needs a reason and puts
+ * a "changes requested" mark on the card, which turns into "updated, review again" when the file is
+ * saved with new content. Both are recorded in the block's comment thread.
  *
- * The board's part of a file block lives in its own map, `agreements`, keyed by the block's id, and
- * not on the file item: the CLI rewrites the whole file item on each save, so a field there could
- * be lost to a save that lands at the same moment.
+ * The board's part of a file block lives in its own maps (`agreements`, `reviews`), keyed by the
+ * block's id, and not on the file item: the CLI rewrites the whole file item on each save, so a
+ * field there could be lost to a save that lands at the same moment.
  */
 
 export type ItemState = 'draft' | 'agreed';
@@ -38,8 +41,8 @@ export interface Snapshot {
 export interface Agreement {
   /** The file block this is about. */
   item: string;
-  /** The decision block that agreed it. */
-  decision: string;
+  /** The decision block that agreed it, for agreements made before agreeing on the card. */
+  decision?: string;
   snapshot: Snapshot;
   accepts: Accept[];
   /** The file content (by hash) a person chose to keep the snapshot against. */
@@ -59,41 +62,68 @@ export function stateOf(a: Agreement | undefined): ItemState {
   return a ? 'agreed' : 'draft';
 }
 
-/** The zone comes from the state, never from the position (design 3.1). */
-export function zoneOf(a: Agreement | undefined, ownerSide: Side): Zone {
-  return a ? 'agreed' : ownerSide;
-}
-
 function snapshotOf(item: FileItem, at: number): Snapshot {
   return { text: item.text, hash: item.hash, type: item.type, at };
 }
 
+/** A reject of a block: who, when, why, and the content (by hash) that was rejected. */
+export interface Review {
+  item: string;
+  by: string;
+  at: number;
+  reason: string;
+  hash: string;
+}
+
+export function reviewsMap(doc: Y.Doc): Y.Map<Review> {
+  return doc.getMap<Review>('reviews');
+}
+
+export type ReviewMark = 'changes requested' | 'updated, review again';
+
+/** The mark a rejected block shows: until its file is saved with new content, then after. */
+export function reviewMark(item: Pick<FileItem, 'hash'>, r: Review | undefined): ReviewMark | null {
+  if (!r) return null;
+  return item.hash === r.hash ? 'changes requested' : 'updated, review again';
+}
+
 /**
- * Agree on file blocks of one frame: a decision block, and a snapshot for each block. Blocks that
- * are not file blocks, are gone or sit in another frame are left out. Returns the decision id, or
- * null when nothing is left to agree on.
+ * "✓ Agree" on a block: one click. Records "✓ <name> agreed" (with an optional note) in its
+ * thread and, once the accepts are enough for `mode`, takes a snapshot of the file as it is now:
+ * a first agreement, or a new snapshot in place of the old one. Its snapshot card gets a free spot
+ * in the Agreed area the first time. Clears a reject. False for a block that is not on the board.
  */
-export function agree(
-  doc: Y.Doc,
-  opts: { text: string; covers: readonly string[]; by: Person; mode?: AgreeMode; now?: number },
-): string | null {
-  const text = opts.text.trim();
-  const files = opts.covers.map((id) => fileItemOf(doc, id)).filter((f): f is FileItem => !!f && !f.gone);
-  if (!text || files.length === 0) return null;
-  const frame = files[0]!.frame;
-  const covered = files.filter((f) => f.frame === frame);
+export function agreeItem(doc: Y.Doc, itemId: string, opts: { by: Person; note?: string; mode?: AgreeMode; now?: number }): boolean {
+  const f = fileItemOf(doc, itemId);
+  if (!f || f.gone) return false;
   const at = opts.now ?? Date.now();
   const accepts: Accept[] = [{ name: opts.by.name, side: opts.by.side, at }];
-  const id = nativeId('d');
   doc.transact(() => {
-    const spot = nextItemSpot(doc, frame, { zone: 'agreed', w: DECISION_W, h: DECISION_H });
-    const decision: DecisionItem = { id, kind: 'decision', frame, text, covers: covered.map((f) => f.id), accepts, author: opts.by.name, createdAt: at };
-    itemsMap(doc).set(id, decision);
-    layoutMap(doc).set(id, spot);
+    addVerdict(doc, { target: itemId, by: opts.by, verdict: 'agree', text: opts.note, now: at });
     if (!isAgreed(accepts, opts.mode ?? 'solo')) return;
-    for (const f of covered) agreementsMap(doc).set(f.id, { item: f.id, decision: id, snapshot: snapshotOf(f, at), accepts });
+    const prev = agreementsMap(doc).get(itemId);
+    agreementsMap(doc).set(itemId, { item: itemId, ...(prev?.decision ? { decision: prev.decision } : {}), snapshot: snapshotOf(f, at), accepts });
+    reviewsMap(doc).delete(itemId);
+    const layout = layoutMap(doc);
+    if (!layout.has(snapId(itemId))) layout.set(snapId(itemId), nextItemSpot(doc, f.frame, { area: 'agreed', h: estimateCardH(f.type, f.text) }));
   });
-  return id;
+  return true;
+}
+
+/**
+ * "✗ Reject" on a block: needs a reason. Records "✗ <name> rejected: <reason>" in its thread and
+ * marks the block "changes requested". False without a reason, or for a block not on the board.
+ */
+export function rejectItem(doc: Y.Doc, itemId: string, opts: { by: Person; reason: string; now?: number }): boolean {
+  const reason = opts.reason.trim();
+  const f = fileItemOf(doc, itemId);
+  if (!reason || !f || f.gone) return false;
+  const at = opts.now ?? Date.now();
+  doc.transact(() => {
+    reviewsMap(doc).set(itemId, { item: itemId, by: opts.by.name, at, reason, hash: f.hash });
+    addVerdict(doc, { target: itemId, by: opts.by, verdict: 'reject', text: reason, now: at });
+  });
+  return true;
 }
 
 /** "Keep snapshot": the file stays as it is, the snapshot stays, the mark goes until the next change. */
@@ -102,17 +132,5 @@ export function keepSnapshot(doc: Y.Doc, itemId: string): boolean {
   const f = fileItemOf(doc, itemId);
   if (!a || !f) return false;
   agreementsMap(doc).set(itemId, { ...a, keptHash: f.hash });
-  return true;
-}
-
-/** "Agree again": a new snapshot of the current file, once the accepts are enough for `mode`. */
-export function agreeAgain(doc: Y.Doc, itemId: string, opts: { by: Person; mode?: AgreeMode; now?: number }): boolean {
-  const a = agreementsMap(doc).get(itemId);
-  const f = fileItemOf(doc, itemId);
-  if (!a || !f) return false;
-  const at = opts.now ?? Date.now();
-  const accepts: Accept[] = [{ name: opts.by.name, side: opts.by.side, at }];
-  if (!isAgreed(accepts, opts.mode ?? 'solo')) return false;
-  agreementsMap(doc).set(itemId, { item: itemId, decision: a.decision, snapshot: snapshotOf(f, at), accepts });
   return true;
 }

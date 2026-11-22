@@ -1,9 +1,10 @@
 import type * as Y from 'yjs';
-import { agreementsMap, changedAfterAgreement, isAgreed, stateOf, zoneOf, type AgreeMode } from './agreement';
+import { agreementsMap, changedAfterAgreement, isAgreed, reviewMark, reviewsMap, stateOf, type AgreeMode } from './agreement';
+import { resolveArea, sidesMap } from './area';
 import { edgesMap, isFileEdge } from './edges';
 import { boardIdOf, boardMap, type Device, type Side } from './index';
 import { framesMap, isFileItem, itemsMap } from './items';
-import { isComment, isDecision, isSticky, isThread, type CommentItem } from './native';
+import { entryText, isComment, isDecision, isSticky, isThread, type CommentItem } from './native';
 
 /**
  * The board as JSON for agents (design 3.1 and 8). It holds meaning only: no `x`, `y` or size.
@@ -19,10 +20,15 @@ export function exportBoard(doc: Y.Doc, opts: { mode?: AgreeMode } = {}) {
   const devices = boardMap<Device>(doc, 'devices');
   const sideOf = (name: string): Side => devices.get(name)?.side ?? 'product';
   const agreements = agreementsMap(doc);
+  const sides = sidesMap(doc);
+  const reviews = reviewsMap(doc);
   const all = [...itemsMap(doc).values()].filter(Boolean);
 
   const files = all.filter(isFileItem).sort((a, b) => a.path.localeCompare(b.path)).map((f) => {
     const a = agreements.get(f.id);
+    const where = resolveArea(f, sideOf(f.owner), sides.get(f.id));
+    const review = reviews.get(f.id);
+    const mark = reviewMark(f, review);
     return {
       id: f.id,
       kind: 'file' as const,
@@ -30,15 +36,21 @@ export function exportBoard(doc: Y.Doc, opts: { mode?: AgreeMode } = {}) {
       path: f.path,
       frame: f.frame,
       state: stateOf(a),
-      zone: zoneOf(a, sideOf(f.owner)),
+      area: where.area,
+      area_source: where.source,
+      area_set_by: where.source === 'human' ? (where.by ?? null) : null,
+      area_set_at: where.source === 'human' ? iso(where.at) : null,
       author: `${f.owner}'s agent`,
       author_kind: 'agent' as const,
       owner: f.owner,
       gone: f.gone,
       updated_at: iso(f.updatedAt),
       content: f.text,
-      snapshot: a ? { content: a.snapshot.text, agreed_at: iso(a.snapshot.at), decision: a.decision, accepts: a.accepts } : null,
+      snapshot: a
+        ? { content: a.snapshot.text, agreed_at: iso(a.snapshot.at), decision: a.decision ?? null, accepts: a.accepts.map((x) => ({ name: x.name, side: x.side, at: iso(x.at) })) }
+        : null,
       changed_after_agreement: changedAfterAgreement(f, a),
+      review: review && mark ? { state: mark, by: review.by, at: iso(review.at), reason: review.reason } : null,
     };
   });
 
@@ -48,7 +60,10 @@ export function exportBoard(doc: Y.Doc, opts: { mode?: AgreeMode } = {}) {
     path: null,
     frame: s.frame,
     state: 'draft' as const,
-    zone: s.side,
+    area: null,
+    area_source: null,
+    area_set_by: null,
+    area_set_at: null,
     author: s.author,
     author_kind: 'human' as const,
     owner: null,
@@ -57,6 +72,7 @@ export function exportBoard(doc: Y.Doc, opts: { mode?: AgreeMode } = {}) {
     content: s.text,
     snapshot: null,
     changed_after_agreement: false,
+    review: null,
   }));
 
   const threads = new Map<string, CommentItem[]>();
@@ -68,7 +84,9 @@ export function exportBoard(doc: Y.Doc, opts: { mode?: AgreeMode } = {}) {
       target,
       resolved,
       resolved_by: resolved && isThread(t) ? (t.by ?? null) : null,
-      comments: list.sort((a, b) => a.at - b.at || a.id.localeCompare(b.id)).map((c) => ({ id: c.id, author: c.author, text: c.text, at: iso(c.at) })),
+      comments: list
+        .sort((a, b) => a.at - b.at || a.id.localeCompare(b.id))
+        .map((c) => ({ id: c.id, author: c.author, verdict: c.verdict ?? null, text: c.text, entry: entryText(c), at: iso(c.at) })),
     };
   });
 
@@ -79,7 +97,7 @@ export function exportBoard(doc: Y.Doc, opts: { mode?: AgreeMode } = {}) {
     covers: d.covers,
     accepts: d.accepts.map((a) => ({ name: a.name, side: a.side, at: iso(a.at) })),
     agreed: isAgreed(d.accepts, mode),
-    zone: 'agreed' as const,
+    area: 'agreed' as const,
     author: d.author,
     created_at: iso(d.createdAt),
   }));

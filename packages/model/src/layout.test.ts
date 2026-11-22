@@ -1,35 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { createBoardDoc } from './index';
-import { framesMap, frameId, frameNameForPath, itemsMap, type FileItem } from './items';
+import { frameNameForPath } from './items';
 import {
-  BLOCK_H,
+  AREA_GAP,
+  AREA_MIN_H,
+  AREA_MIN_W,
+  AREA_PAD,
+  AREA_TOP,
+  areaOrigin,
+  areaRect,
   BLOCK_W,
-  DECISION_H,
-  DECISION_W,
-  FRAME_GAP,
-  FRAME_MIN_W,
+  CARD_MAX_H,
+  CARD_MIN_H,
+  estimateCardH,
   FRAME_PAD,
-  frameRect,
-  frameSize,
+  frameSizeFor,
+  freeSpot,
   GRID_GAP,
-  layoutMap,
-  nextFrameSpot,
-  nextItemSpot,
-  isFreeIn,
-  type Rect,
-  settleFrames,
-  STICKY_H,
-  STICKY_W,
-  ZONE_TOP,
-  zoneRects,
-  ZONES,
-  zoneX,
-  ZONE_STRIP,
+  gridFor,
+  MIN_GRID,
+  overlaps,
 } from './layout';
-
-function item(id: string, frame: string): FileItem {
-  return { id, kind: 'file', path: `${id}.md`, frame, type: 'markdown', text: '', hash: '', owner: 'me', gone: false, updatedAt: 0 };
-}
 
 describe('frames', () => {
   it('a first-level folder is the frame, root files use the root name', () => {
@@ -39,160 +29,90 @@ describe('frames', () => {
   });
 });
 
-describe('placement', () => {
-  it('a new block starts at the top of its zone column, the next one goes below it', () => {
-    const doc = createBoardDoc();
-    const f = frameId('checkout');
-    const first = nextItemSpot(doc, f);
-    expect(first).toEqual({ x: zoneX('product'), y: ZONE_TOP });
-    itemsMap(doc).set('a', item('a', f));
-    layoutMap(doc).set('a', first);
-    const second = nextItemSpot(doc, f);
-    expect(second).toEqual({ x: first.x, y: first.y + BLOCK_H + GRID_GAP });
-    // Another zone has its own column; blocks in another frame do not take places here.
-    expect(nextItemSpot(doc, f, { zone: 'engineering' })).toEqual({ x: zoneX('engineering'), y: ZONE_TOP });
-    expect(nextItemSpot(doc, frameId('other'))).toEqual(first);
+describe('the four areas', () => {
+  it('an empty area is about two and a half cards wide and two cards tall', () => {
+    expect(AREA_MIN_W).toBeGreaterThanOrEqual(BLOCK_W * 2.5);
+    expect(AREA_MIN_W).toBeLessThan(BLOCK_W * 3.2);
+    expect(AREA_MIN_H).toBeGreaterThanOrEqual(900);
   });
 
-  it('a spot is free when no item in the frame overlaps it', () => {
-    const doc = createBoardDoc();
-    const f = frameId('checkout');
-    itemsMap(doc).set('a', item('a', f));
-    layoutMap(doc).set('a', { x: zoneX('product'), y: ZONE_TOP });
-    expect(isFreeIn(doc, f, { x: zoneX('product') + 10, y: ZONE_TOP + 10, w: 50, h: 50 })).toBe(false);
-    expect(isFreeIn(doc, f, { x: zoneX('product') + 10, y: ZONE_TOP + 10, w: 50, h: 50 }, 'a')).toBe(true);
-    expect(isFreeIn(doc, f, { x: zoneX('engineering'), y: ZONE_TOP, w: 50, h: 50 })).toBe(true);
-    expect(isFreeIn(doc, frameId('other'), { x: zoneX('product'), y: ZONE_TOP, w: 50, h: 50 })).toBe(true);
+  it('product top left, engineering top right, agreed bottom left, milestone bottom right', () => {
+    const g = MIN_GRID;
+    const r = { product: areaRect(g, 'product'), engineering: areaRect(g, 'engineering'), agreed: areaRect(g, 'agreed'), milestone: areaRect(g, 'milestone') };
+    expect(r.product).toEqual({ x: FRAME_PAD, y: FRAME_PAD, w: AREA_MIN_W, h: AREA_MIN_H });
+    expect(r.engineering).toMatchObject({ x: FRAME_PAD + AREA_MIN_W + AREA_GAP, y: FRAME_PAD });
+    expect(r.agreed).toMatchObject({ x: FRAME_PAD, y: FRAME_PAD + AREA_MIN_H + AREA_GAP });
+    expect(r.milestone).toMatchObject({ x: r.engineering.x, y: r.agreed.y });
+    const all = Object.values(r);
+    for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) expect(overlaps(all[i]!, all[j]!)).toBe(false);
+    const size = frameSizeFor(g);
+    expect(r.milestone.x + r.milestone.w + FRAME_PAD).toBe(size.w);
+    expect(r.milestone.y + r.milestone.h + FRAME_PAD).toBe(size.h);
   });
 
-  it('a resized block takes its own size', () => {
-    const doc = createBoardDoc();
-    const f = frameId('checkout');
-    itemsMap(doc).set('a', item('a', f));
-    layoutMap(doc).set('a', { x: zoneX('product'), y: ZONE_TOP, w: BLOCK_W, h: 900 });
-    expect(nextItemSpot(doc, f)).toEqual({ x: zoneX('product'), y: ZONE_TOP + 900 + GRID_GAP });
+  it('an area grows to hold what is in it, and its row or column grows with it', () => {
+    const g = gridFor([{ id: 'a', area: 'engineering', x: AREA_PAD, y: 2000, w: BLOCK_W, h: 600 }]);
+    expect(g.rows[0]).toBe(2000 + 600 + AREA_PAD);
+    expect(g.cols).toEqual([AREA_MIN_W, AREA_MIN_W]);
+    expect(g.rows[1]).toBe(AREA_MIN_H);
+    // The area beside it (same row) is as tall; the areas below move down.
+    expect(areaRect(g, 'product').h).toBe(g.rows[0]);
+    expect(areaOrigin(g, 'agreed').y).toBe(FRAME_PAD + g.rows[0] + AREA_GAP);
   });
 
-  it('a block dragged into a column keeps its place taken; a smaller item fits a smaller gap', () => {
-    const doc = createBoardDoc();
-    const f = frameId('checkout');
-    itemsMap(doc).set('a', item('a', f));
-    layoutMap(doc).set('a', { x: zoneX('agreed') + 20, y: ZONE_TOP + DECISION_H + 40 });
-    const d = nextItemSpot(doc, f, { zone: 'agreed', w: DECISION_W, h: DECISION_H });
-    expect(d).toEqual({ x: zoneX('agreed'), y: ZONE_TOP });
-    const big = nextItemSpot(doc, f, { zone: 'agreed' });
-    expect(big.y).toBe(ZONE_TOP + DECISION_H + 40 + BLOCK_H + GRID_GAP);
+  it('an area never shrinks below the grid it had', () => {
+    const big = { cols: [3000, AREA_MIN_W] as [number, number], rows: [AREA_MIN_H, 2500] as [number, number] };
+    expect(gridFor([], big)).toEqual(big);
+    expect(gridFor([], { cols: [10, 10], rows: [10, 10] })).toEqual(MIN_GRID);
   });
 
-  it('the zones are four columns, left to right, and fill the frame height', () => {
-    const cells = [{ x: zoneX('milestone'), y: ZONE_TOP }];
-    const z = zoneRects(1000, cells);
-    expect(ZONES).toEqual(['product', 'engineering', 'agreed', 'milestone']);
-    expect(Object.values(z).every((r) => !r.strip && r.w === BLOCK_W + 24)).toBe(true);
-    expect(z.product.x).toBeLessThan(z.engineering.x);
-    expect(z.agreed.x).toBeLessThan(z.milestone.x);
-    expect(z.milestone.x + z.milestone.w).toBeLessThanOrEqual(frameSize(cells).w);
-    expect(z.product.y + z.product.h).toBeLessThanOrEqual(1000);
-  });
-
-  it('empty zones after the last one in use are thin strips at the right, inside the frame', () => {
-    const cells = [{ x: zoneX('product'), y: ZONE_TOP }, { x: zoneX('product'), y: ZONE_TOP + BLOCK_H + GRID_GAP }];
-    const z = zoneRects(1000, cells);
-    expect(z.product).toMatchObject({ strip: false, w: BLOCK_W + 24 });
-    for (const k of ['engineering', 'agreed', 'milestone'] as const) expect(z[k]).toMatchObject({ strip: true, w: ZONE_STRIP - 8 });
-    expect(z.engineering.x).toBeGreaterThan(z.product.x + z.product.w);
-    expect(z.milestone.x).toBeGreaterThan(z.agreed.x);
-    const w = frameSize(cells).w;
-    expect(z.milestone.x + z.milestone.w).toBeLessThanOrEqual(w);
-    // Far narrower than four full columns.
-    expect(w).toBe(zoneX('product') + BLOCK_W + FRAME_PAD + 3 * ZONE_STRIP);
-    expect(FRAME_MIN_W).toBe(w);
-
-    // A block in the engineering column widens it; an empty zone between two in use stays full.
-    expect(zoneRects(1000, [{ x: zoneX('engineering'), y: ZONE_TOP }]).engineering.strip).toBe(false);
-    const gap = zoneRects(1000, [{ x: zoneX('product'), y: ZONE_TOP }, { x: zoneX('agreed'), y: ZONE_TOP }]);
-    expect([gap.engineering.strip, gap.agreed.strip, gap.milestone.strip]).toEqual([false, false, true]);
-  });
-
-  it('places new frames to the right of the others', () => {
-    const doc = createBoardDoc();
-    const a = nextFrameSpot(doc);
-    framesMap(doc).set('frame:a', { id: 'frame:a', name: 'a' });
-    layoutMap(doc).set('frame:a', a);
-    expect(nextFrameSpot(doc).x).toBe(a.x + FRAME_MIN_W + FRAME_GAP);
-  });
-
-  it('a new frame goes right of a frame that grew', () => {
-    const doc = createBoardDoc();
-    framesMap(doc).set('frame:a', { id: 'frame:a', name: 'a' });
-    layoutMap(doc).set('frame:a', { x: 0, y: 0 });
-    itemsMap(doc).set('wide', item('wide', 'frame:a'));
-    layoutMap(doc).set('wide', { x: 2000, y: 48 });
-    expect(nextFrameSpot(doc).x).toBe(2000 + BLOCK_W + FRAME_PAD + FRAME_GAP);
-  });
-
-  it('a frame holds its zones and grows to hold its items, each with its own size', () => {
-    expect(frameSize([]).w).toBe(FRAME_MIN_W);
-    expect(frameSize([{ x: zoneX('engineering'), y: ZONE_TOP }]).w).toBe(zoneX('engineering') + BLOCK_W + FRAME_PAD + 2 * ZONE_STRIP);
-    expect(frameSize([{ x: 2000, y: 900 }])).toEqual({ w: 2000 + BLOCK_W + FRAME_PAD, h: 900 + BLOCK_H + FRAME_PAD });
-    expect(frameSize([{ x: 2000, y: 900, w: STICKY_W, h: STICKY_H }])).toEqual({ w: 2000 + STICKY_W + FRAME_PAD, h: 900 + STICKY_H + FRAME_PAD });
+  it('notes in the frame make room for themselves', () => {
+    const size = frameSizeFor(MIN_GRID, [{ x: 5000, y: 10, w: 200, h: 160 }]);
+    expect(size.w).toBe(5000 + 200 + FRAME_PAD);
+    expect(size.h).toBe(frameSizeFor(MIN_GRID).h);
   });
 });
 
-describe('settling frames', () => {
-  const overlap = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-  const frame = (doc: ReturnType<typeof createBoardDoc>, name: string, at?: { x: number; y: number }) => {
-    framesMap(doc).set(`frame:${name}`, { id: `frame:${name}`, name });
-    if (at) layoutMap(doc).set(`frame:${name}`, at);
-  };
-  const noOverlap = (doc: ReturnType<typeof createBoardDoc>) => {
-    const rects = [...framesMap(doc).keys()].map((id) => frameRect(doc, id));
-    for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) expect(overlap(rects[i]!, rects[j]!)).toBe(false);
-  };
+describe('a free spot in an area', () => {
+  const want = { w: BLOCK_W, h: 400 };
 
-  it('frames saved overlapping move right until clear, in order, and stay saved', () => {
-    const doc = createBoardDoc();
-    // Saved by an older, narrower layout: they overlap now.
-    frame(doc, 'checkout', { x: 0, y: 0 });
-    frame(doc, 'ui', { x: 300, y: 0 });
-    frame(doc, 'docs', { x: 600, y: 0 });
-    expect(settleFrames(doc)).toBe(2);
-    expect(layoutMap(doc).get('frame:checkout')).toEqual({ x: 0, y: 0 });
-    expect(layoutMap(doc).get('frame:ui')).toEqual({ x: FRAME_MIN_W + FRAME_GAP, y: 0 });
-    expect(layoutMap(doc).get('frame:docs')).toEqual({ x: 2 * (FRAME_MIN_W + FRAME_GAP), y: 0 });
-    noOverlap(doc);
-    // Already clear: nothing moves again.
-    expect(settleFrames(doc)).toBe(0);
+  it('the first spot is at the top left, under the label; the next is to its right', () => {
+    const a = freeSpot([], AREA_MIN_W, want);
+    expect(a).toEqual({ x: AREA_PAD, y: AREA_TOP });
+    const b = freeSpot([{ ...a, ...want }], AREA_MIN_W, want);
+    expect(b).toEqual({ x: AREA_PAD + BLOCK_W + GRID_GAP, y: AREA_TOP });
   });
 
-  it('a frame that grew pushes the frames right of it', () => {
-    const doc = createBoardDoc();
-    frame(doc, 'a', { x: 0, y: 0 });
-    frame(doc, 'b', { x: FRAME_MIN_W + FRAME_GAP, y: 0 });
-    expect(settleFrames(doc)).toBe(0);
-    itemsMap(doc).set('wide', item('wide', 'frame:a'));
-    layoutMap(doc).set('wide', { x: FRAME_MIN_W, y: ZONE_TOP });
-    expect(settleFrames(doc)).toBe(1);
-    expect(layoutMap(doc).get('frame:b')!.x).toBe(frameSize([{ x: FRAME_MIN_W, y: ZONE_TOP }]).w + FRAME_GAP);
-    noOverlap(doc);
+  it('when a row is full the next spot is below, a gap clear of what is there', () => {
+    const taken = [
+      { x: AREA_PAD, y: AREA_TOP, w: BLOCK_W, h: 400 },
+      { x: AREA_PAD + BLOCK_W + GRID_GAP, y: AREA_TOP, w: BLOCK_W, h: 700 },
+    ];
+    const c = freeSpot(taken, AREA_MIN_W, want);
+    expect(c).toEqual({ x: AREA_PAD, y: AREA_TOP + 400 + GRID_GAP });
+    for (const t of taken) expect(overlaps(t, { ...c, ...want })).toBe(false);
   });
 
-  it('a frame dragged to a clear spot keeps it; one dragged onto another moves off it', () => {
-    const doc = createBoardDoc();
-    frame(doc, 'a', { x: 0, y: 0 });
-    frame(doc, 'below', { x: 300, y: 2000 });
-    frame(doc, 'onto', { x: 500, y: 100 });
-    expect(settleFrames(doc)).toBe(1);
-    expect(layoutMap(doc).get('frame:below')).toEqual({ x: 300, y: 2000 });
-    expect(layoutMap(doc).get('frame:onto')).toEqual({ x: FRAME_MIN_W + FRAME_GAP, y: 100 });
-    noOverlap(doc);
+  it('a spot a card was moved away from is free again; a moved card keeps its new place taken', () => {
+    const moved = [{ x: 900, y: 600, w: BLOCK_W, h: 400 }];
+    expect(freeSpot(moved, AREA_MIN_W, want)).toEqual({ x: AREA_PAD, y: AREA_TOP });
+    const s = freeSpot([...moved, { x: AREA_PAD, y: AREA_TOP, ...want }], AREA_MIN_W, want);
+    expect(overlaps({ ...s, ...want }, moved[0]!)).toBe(false);
   });
 
-  it('a frame with no layout counts as at the origin, like on the canvas', () => {
-    const doc = createBoardDoc();
-    frame(doc, 'a', { x: 0, y: 0 });
-    frame(doc, 'b');
-    expect(settleFrames(doc)).toBe(1);
-    expect(layoutMap(doc).get('frame:b')).toEqual({ x: FRAME_MIN_W + FRAME_GAP, y: 0 });
+  it('a card wider than the area goes below everything (the area then grows)', () => {
+    const s = freeSpot([{ x: AREA_PAD, y: AREA_TOP, w: 100, h: 100 }], 300, { w: 1000, h: 100 });
+    expect(s).toEqual({ x: AREA_PAD, y: AREA_TOP + 100 + GRID_GAP });
+  });
+});
+
+describe('a card height before it is measured', () => {
+  it('follows the text, from a small card up to the cap; html gets a tall page', () => {
+    expect(estimateCardH('markdown', '')).toBe(CARD_MIN_H);
+    const long = Array.from({ length: 30 }, (_, i) => `line ${i} with some words in it`).join('\n');
+    const short = estimateCardH('markdown', '# Title\nA line.');
+    expect(estimateCardH('markdown', long)).toBeGreaterThan(short);
+    expect(estimateCardH('markdown', long.repeat(20))).toBe(CARD_MAX_H);
+    expect(estimateCardH('html', '<p>x</p>')).toBeGreaterThanOrEqual(600);
   });
 });
