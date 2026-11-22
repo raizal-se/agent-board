@@ -16,7 +16,6 @@
     "@agent-board/model": "workspace:*",
     "@agent-board/sync": "workspace:*",
     "@excalidraw/excalidraw": "0.18.1",
-    "@xyflow/react": "^13.0.2",
     "dompurify": "^3.2.0",
     "marked": "^18.2.1",
     "pele": "^1.13.0",
