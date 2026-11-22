@@ -1,7 +1,7 @@
 import { devices, expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { block, boundText, fitAll, guardPage, idOf, ofKind, openBoard, scene, selectPaths } from './canvas';
+import { block, boundText, clickEl, fitAll, guardPage, idOf, ofKind, openBoard, scene, selectPaths } from './canvas';
 import { startCli, type RunningCli } from './cli';
 
 /** Milestones and stories in the Milestone area: import, make by hand, cover, block, approve, reset, persist, phone. */
@@ -422,6 +422,97 @@ test.describe('desktop', () => {
     await check();
     expect(exp()?.stories).toHaveLength(2);
   });
+
+  test('delete a story with its button: it asks first; after a reload and a restart it is gone and the story it blocked can start', async ({ page }) => {
+    cli = await startCli({ ...BASE, 'checkout/milestone-1.md': MILESTONE });
+    await openBoard(page, cli, 'checkout/api.md');
+    const [s1, s2] = await stories(page, 2);
+    await focus(page, s1!);
+    await storyCard(page, s1!).getByTestId('story-edit').click();
+    await page.getByTestId('story-dialog').getByTestId('story-delete').click();
+    const confirm = page.getByTestId('confirm-dialog');
+    await expect(confirm.getByTestId('confirm-text')).toHaveText("Delete Story 1 'Card form ready'? This can not be undone.");
+    // Cancel keeps it.
+    await confirm.getByRole('button', { name: 'Cancel' }).click();
+    await expect(confirm).toHaveCount(0);
+    await stories(page, 2);
+
+    await focus(page, s1!);
+    await storyCard(page, s1!).getByTestId('story-edit').click();
+    await page.getByTestId('story-dialog').getByTestId('story-delete').click();
+    await confirm.getByTestId('dialog-save').click();
+    await expect(page.getByTestId('story-dialog')).toHaveCount(0);
+    expect(await stories(page, 1)).toEqual([s2]);
+    await expect.poll(() => exp()?.stories.map((s) => s.id), { timeout: 3000 }).toEqual([s2]);
+
+    const check = async () => {
+      expect(await stories(page, 1)).toEqual([s2]);
+      expect((await scene(page)).some((e) => e.id === `${s1}~blocks~${s2}`)).toBe(false);
+      await focus(page, s2!);
+      await expect(storyCard(page, s2!).getByTestId('story-start')).toHaveText('can start');
+      await fitAll(page);
+      await expect(page.getByTestId('milestone-count')).toHaveText('1 story · 0 approved · 1 can start');
+      // It was imported: "import new entries" does not offer it again.
+      await expect(block(page, 'checkout/milestone-1.md').getByTestId('milestone-imported')).toHaveText('imported · 1 story');
+      await expect(block(page, 'checkout/milestone-1.md').getByTestId('import-new')).toHaveCount(0);
+    };
+    await check();
+
+    await page.reload();
+    await openBoard(page, cli, 'checkout/api.md');
+    await check();
+
+    const folder = cli.folder;
+    await cli.stop();
+    cli = await startCli({}, folder);
+    await openBoard(page, cli, 'checkout/api.md');
+    await check();
+    expect(exp()?.stories.map((s) => s.id)).toEqual([s2]);
+  });
+
+  test('delete a milestone with the Delete key: its stories go, and its file block offers import again', async ({ page }) => {
+    cli = await startCli({ ...BASE, 'checkout/milestone-1.md': MILESTONE });
+    await openBoard(page, cli, 'checkout/api.md');
+    await stories(page, 2);
+    const mid = ofKind(await scene(page), 'milestone')[0]!.id;
+    await focus(page, mid);
+    await clickEl(page, mid);
+    await expect(page.getByTestId('selection-bar')).toContainText('Milestone 1');
+    await page.keyboard.press('Delete');
+    const confirm = page.getByTestId('confirm-dialog');
+    await expect(confirm.getByTestId('confirm-text')).toHaveText("Delete Milestone 1 'Pay by card' and its 2 stories? This can not be undone.");
+    // The canvas did not delete it before the person said yes.
+    expect((await scene(page)).some((e) => e.id === mid)).toBe(true);
+    // Enter says yes: the Delete button has the focus.
+    await page.keyboard.press('Enter');
+    await expect(confirm).toHaveCount(0);
+    await expect.poll(async () => ofKind(await scene(page), 'milestone').length, { timeout: 5000 }).toBe(0);
+    await stories(page, 0);
+    await expect.poll(() => exp()?.milestones.length, { timeout: 3000 }).toBe(0);
+    expect(exp()?.stories).toHaveLength(0);
+    expect(ofKind(await scene(page), 'milestone-start').length).toBeGreaterThan(0);
+
+    // The file stays. The CLI does not import it again by itself, also when the file changes.
+    expect(readFileSync(join(cli.folder, 'checkout/milestone-1.md'), 'utf8')).toBe(MILESTONE);
+    cli.write('checkout/milestone-1.md', `${MILESTONE}\n`);
+    await page.waitForTimeout(1000);
+    expect(ofKind(await scene(page), 'milestone')).toHaveLength(0);
+    await fitAll(page);
+    const importBtn = block(page, 'checkout/milestone-1.md').getByTestId('import-new');
+    await expect(importBtn).toHaveText('import');
+    await importBtn.click();
+    await stories(page, 2);
+    await expect(block(page, 'checkout/milestone-1.md').getByTestId('milestone-imported')).toHaveText('imported · 2 stories');
+
+    // A file card keeps today's rule: the Delete key does not ask, and the card comes back.
+    await focus(page, await idOf(page, 'checkout/api.md'));
+    await selectPaths(page, 'checkout/api.md');
+    await page.keyboard.press('Delete');
+    await expect(confirm).toHaveCount(0);
+    await page.waitForTimeout(500);
+    await expect.poll(async () => !!(await scene(page)).find((e) => e.ab?.path === 'checkout/api.md'), { timeout: 5000 }).toBe(true);
+    expect(exp()?.milestones).toHaveLength(1);
+  });
 });
 
 // A describe group cannot set the browser type, so take the phone's viewport, touch and agent only.
@@ -458,5 +549,23 @@ test.describe('phone', () => {
     await s.getByTestId('story-agree').tap();
     await expect(s).toHaveAttribute('data-approved', 'yes');
     await expect.poll(() => exp()?.stories[0]?.approved, { timeout: 3000 }).toBe(true);
+  });
+
+  test('a phone can delete a story with the button in the opened story', async ({ page }) => {
+    cli = await startCli({ ...BASE, 'checkout/milestone-1.md': MILESTONE });
+    await openBoard(page, cli, 'checkout/api.md', { fit: false });
+    const [s1, s2] = await stories(page, 2);
+    await focus(page, s1!);
+    await storyCard(page, s1!).getByTestId('story-edit').tap();
+    const del = page.getByTestId('story-dialog').getByTestId('story-delete');
+    expect((await del.boundingBox())!.height).toBeGreaterThanOrEqual(32);
+    await del.tap();
+    const confirm = page.getByTestId('confirm-dialog');
+    await expect(confirm.getByTestId('confirm-text')).toHaveText("Delete Story 1 'Card form ready'? This can not be undone.");
+    const yes = confirm.getByTestId('dialog-save');
+    expect((await yes.boundingBox())!.height).toBeGreaterThanOrEqual(32);
+    await yes.tap();
+    expect(await stories(page, 1)).toEqual([s2]);
+    await expect.poll(() => exp()?.stories.map((s) => s.id), { timeout: 3000 }).toEqual([s2]);
   });
 });
