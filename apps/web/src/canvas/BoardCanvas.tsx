@@ -3,6 +3,7 @@ import type { ExcalidrawElement, NonDeleted, ExcalidrawEmbeddableElement } from 
 import type { AppState, ExcalidrawImperativeAPI, ExcalidrawInitialDataState, NormalizedZoomValue } from '@excalidraw/excalidraw/types';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import type * as Y from 'yjs';
+import { selectedIds, undoActivation, type ActivationState } from './activation';
 import { EMBED_SCHEME, FONT_HELVETICA, kindOf, roughMeasure, type El, type Measure } from './elements';
 import { BlockEmbed } from './embeds';
 import { contentBounds, fitTop, inView } from './fit';
@@ -104,8 +105,12 @@ export const BoardCanvas = memo(function BoardCanvas({
   const picked = useRef<string[]>([]);
   const lastKey = useRef('');
   const fitted = useRef(false);
+  const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
+  /** The selection as of the last change that activated nothing (see activation.ts). */
+  const lastSelected = useRef<Record<string, true>>({});
 
   useEffect(() => {
+    apiRef.current = api;
     if (!api) return;
     const sync = new BoardSync(
       doc,
@@ -175,7 +180,13 @@ export const BoardCanvas = memo(function BoardCanvas({
 
   const onChange = useCallback(
     (elements: readonly ExcalidrawElement[], appState: AppState) => {
-      const ids = Object.keys(appState.selectedElementIds).filter((id) => appState.selectedElementIds[id]);
+      const undo = undoActivation(appState as unknown as ActivationState, lastSelected.current);
+      if (undo && apiRef.current) {
+        apiRef.current.updateScene({ appState: undo, captureUpdate: CaptureUpdateAction.NEVER });
+        return;
+      }
+      lastSelected.current = selectedIds(appState as unknown as ActivationState);
+      const ids = Object.keys(lastSelected.current);
       if (ids.length === 0 && picked.current.length === 0 && lastKey.current === '') return;
       const byId = new Map(elements.map((e) => [e.id, e as unknown as El]));
       const items = ids.filter((id) => BOARD_KINDS.has(kindOf(byId.get(id)) ?? ''));
