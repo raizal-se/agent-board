@@ -8,7 +8,8 @@ export interface Identity {
   side: Side;
 }
 
-export const CONFIG_FILE = join(homedir(), '.agent-board', 'config.json');
+export const CONFIG_DIR = process.env.AGENT_BOARD_HOME ?? join(homedir(), '.agent-board');
+export const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
 function isSide(v: unknown): v is Side {
   return v === 'product' || v === 'engineering';

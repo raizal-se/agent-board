@@ -34,8 +34,12 @@ export function saveDoc(doc: Y.Doc, file: string): void {
   writeAtomic(file, Y.encodeStateAsUpdate(doc));
 }
 
-export function writeExport(doc: Y.Doc, file: string): void {
-  writeAtomic(file, `${JSON.stringify(exportBoard(doc), null, 2)}\n`);
+/** Names of the people online now, on a shared board. */
+export type OnlineNames = () => string[] | undefined;
+
+export function writeExport(doc: Y.Doc, file: string, online?: OnlineNames): void {
+  const names = online?.();
+  writeAtomic(file, `${JSON.stringify(exportBoard(doc, names ? { online: names } : {}), null, 2)}\n`);
 }
 
 export interface AutoSave {
@@ -53,9 +57,9 @@ export function autoSave(doc: Y.Doc, file: string, delayMs = 150): AutoSave {
  * Write the JSON export about 300 ms after the last of a burst of changes (a long burst still
  * writes at least once a second), and once now, so it is there from the start.
  */
-export function autoExport(doc: Y.Doc, file: string, delayMs = 300): AutoSave {
-  writeExport(doc, file);
-  return afterChanges(doc, delayMs, () => writeExport(doc, file), 1000);
+export function autoExport(doc: Y.Doc, file: string, delayMs = 300, online?: OnlineNames): AutoSave {
+  writeExport(doc, file, online);
+  return afterChanges(doc, delayMs, () => writeExport(doc, file, online), 1000);
 }
 
 /**

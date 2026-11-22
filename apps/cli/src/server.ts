@@ -10,8 +10,22 @@ import type * as Y from 'yjs';
 export const SYNC_PATH = '/sync';
 const HOST = '127.0.0.1';
 
+/**
+ * The page's view of this CLI on a shared board, on the `ctl` channel (JSON): the CLI sends its
+ * snapshot to each tab when it changes; a tab sends commands (approve, deny, revoke, cursor, share).
+ */
+export interface TabSession {
+  snapshot(): unknown;
+  onChange(h: () => void): () => void;
+  command(cmd: unknown): void;
+}
+
+/** The CLI marker: a page asks `/.cli` to learn that a CLI serves it (hub mode). */
+export const CLI_MARKER_PATH = '/.cli';
+
 export interface BoardServerOptions {
   doc: Y.Doc;
+  session?: TabSession;
   /** 0 picks a free port. */
   port: number;
   /** The built web app (apps/web/dist). */
@@ -85,8 +99,13 @@ export async function startServer(opts: BoardServerOptions): Promise<BoardServer
   const server = createServer((req, res) => {
     if (!hostOk(req)) return refuse(res, 421, 'Wrong host');
     if (req.method !== 'GET' && req.method !== 'HEAD') return refuse(res, 405, 'Method not allowed');
+    if ((req.url ?? '').split('?')[0] === CLI_MARKER_PATH) {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify({ cli: true }));
+    }
     serveStatic(webRoot, req, res);
   });
+  const offSession = opts.session ? attachSession(hub, opts.session) : () => {};
 
   server.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url ?? '/', 'http://x');
@@ -128,9 +147,68 @@ export async function startServer(opts: BoardServerOptions): Promise<BoardServer
     port,
     tabs: () => hub.peers().length,
     close: async () => {
+      offSession();
       sync.destroy();
       await hub.leave();
       wss.close();
+      server.closeAllConnections();
+      await new Promise<void>((ok) => server.close(() => ok()));
+    },
+  };
+}
+
+function attachSession(hub: WebSocketHubTransport, session: TabSession): () => void {
+  const ch = hub.channel('ctl');
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+  const snap = () => enc.encode(JSON.stringify(session.snapshot()));
+  let queued = false;
+  const offChange = session.onChange(() => {
+    if (queued) return;
+    queued = true;
+    queueMicrotask(() => {
+      queued = false;
+      if (hub.peers().length) ch.send(snap());
+    });
+  });
+  const offJoin = hub.onPeerJoin((id) => ch.send(snap(), id));
+  const offMsg = ch.onMessage((data) => {
+    try {
+      session.command(JSON.parse(dec.decode(data)));
+    } catch {
+      // not JSON: ignore
+    }
+  });
+  return () => {
+    offChange();
+    offJoin();
+    offMsg();
+  };
+}
+
+/**
+ * `agent-board app`: the web app alone, as a static peer app (no CLI marker, no board socket).
+ * Any host name: it is for a phone on the network or a public tunnel (`bb connect expose`).
+ */
+export async function startAppServer(opts: { webDir: string; port: number; host?: string }): Promise<{ url: string; port: number; close(): Promise<void> }> {
+  const webRoot = resolve(opts.webDir);
+  const server = createServer((req, res) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return refuse(res, 405, 'Method not allowed');
+    serveStatic(webRoot, req, res);
+  });
+  const host = opts.host ?? '127.0.0.1';
+  await new Promise<void>((ok, fail) => {
+    server.once('error', fail);
+    server.listen(opts.port, host, () => {
+      server.off('error', fail);
+      ok();
+    });
+  });
+  const port = (server.address() as AddressInfo).port;
+  return {
+    url: `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${port}`,
+    port,
+    close: async () => {
       server.closeAllConnections();
       await new Promise<void>((ok) => server.close(() => ok()));
     },

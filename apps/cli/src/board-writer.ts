@@ -37,6 +37,12 @@ export interface BoardWriterOptions {
   /** An unlink then an add with the same content within this window is a rename. Default 1000 ms. */
   renameWindowMs?: number;
   now?: () => number;
+  /**
+   * On a shared board: sign each file item as this device before it goes on the board, and sign
+   * the note that a block was removed for good. Without them the items are not signed (solo board).
+   */
+  seal?: (item: FileItem) => FileItem;
+  retired?: (id: string) => void;
 }
 
 export function contentHash(text: string): string {
@@ -81,7 +87,6 @@ export class BoardWriter {
     if (!type) return 'skipped';
     const hash = contentHash(text);
     const area = parseFileArea(path, text);
-    const items = itemsMap(this.doc);
     let result: UpsertResult;
 
     this.doc.transact(() => {
@@ -102,7 +107,7 @@ export class BoardWriter {
           result = prev.gone ? 'back' : 'changed';
           const next: FileItem = { ...prev, text, hash, type, area, gone: false, updatedAt: this.now() };
           this.followArea(prev, next);
-          items.set(known, next);
+          this.put(next);
         }
         this.syncEdges(known, path, text);
         return;
@@ -122,8 +127,8 @@ export class BoardWriter {
         } else {
           this.followArea(renamedFrom, next);
         }
-        items.set(renamedFrom.id, next);
-        resolveEdgesTo(this.doc, path, renamedFrom.id);
+        this.put(next);
+        resolveEdgesTo(this.doc, path, renamedFrom.id, this.mine);
         this.syncEdges(renamedFrom.id, path, text);
         result = 'renamed';
         return;
@@ -133,9 +138,9 @@ export class BoardWriter {
       const frame = this.ensureFrame(path);
       const item: FileItem = { id, kind: 'file', path, frame, type, text, hash, area, owner: this.opts.owner, gone: false, updatedAt: this.now() };
       this.placeIn(item);
-      items.set(id, item);
+      this.put(item);
       this.index.set(path, id);
-      resolveEdgesTo(this.doc, path, id);
+      resolveEdgesTo(this.doc, path, id, this.mine);
       this.syncEdges(id, path, text);
       result = 'new';
     });
@@ -177,9 +182,17 @@ export class BoardWriter {
     this.pendingGone.clear();
   }
 
+  /** Links resolve only from this owner's files: other people have their own folders with the same paths. */
+  private readonly mine = (fromId: string) => fileItemOf(this.doc, fromId)?.owner === this.opts.owner;
+
+  private put(item: FileItem) {
+    itemsMap(this.doc).set(item.id, this.opts.seal ? this.opts.seal(item) : item);
+  }
+
   /** Remove a gone block for good: its item, its place and the edges its file declared. */
   private retire(id: string, path: string) {
     syncFileEdges(this.doc, id, []);
+    this.opts.retired?.(id);
     itemsMap(this.doc).delete(id);
     layoutMap(this.doc).delete(id);
     this.index.delete(path);
@@ -211,10 +224,9 @@ export class BoardWriter {
   }
 
   private markGone(id: string): boolean {
-    const items = itemsMap(this.doc);
     const item = fileItemOf(this.doc, id);
     if (!item || item.gone) return false;
-    items.set(id, { ...item, gone: true, updatedAt: this.now() });
+    this.put({ ...item, gone: true, updatedAt: this.now() });
     return true;
   }
 
