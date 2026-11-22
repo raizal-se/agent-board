@@ -39,7 +39,7 @@ export async function startCli(files: Record<string, string>, folder?: string): 
   for (const [p, t] of Object.entries(files)) write(p, t);
 
   const port = await freePort();
-  const child: ChildProcess = spawn(process.execPath, [BIN, 'watch', root, '--port', String(port), '--name', 'e2e'], {
+  const child: ChildProcess = spawn(process.execPath, [BIN, 'watch', root, '--port', String(port), '--name', 'e2e', '--side', 'product'], {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let out = '';

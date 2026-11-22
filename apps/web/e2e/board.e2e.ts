@@ -107,7 +107,9 @@ test('edges run border to border above the frames, each label at its own edge', 
   ];
   const labels = page.getByTestId('edge-label');
   await expect(labels).toHaveCount(2);
-  expect((await labels.allInnerTexts()).sort()).toEqual(['calls', 'shows']);
+  expect((await labels.locator('.edge-label-text').allInnerTexts()).sort()).toEqual(['calls', 'shows']);
+  // A file edge names the file it comes from.
+  await expect(labels.filter({ hasText: 'calls' }).locator('.edge-label-file')).toHaveText('from flow.md');
 
   // Label boxes do not overlap.
   const [a, b] = await labels.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON() as DOMRect));
@@ -126,7 +128,7 @@ test('edges run border to border above the frames, each label at its own edge', 
           return { x: p.x, y: p.y };
         };
         const rect = (p: string) => document.querySelector(`[data-testid="block"][data-path="${p}"]`)!.getBoundingClientRect().toJSON() as DOMRect;
-        const lab = [...document.querySelectorAll('[data-testid="edge-label"]')].find((e) => e.textContent === label)!;
+        const lab = [...document.querySelectorAll('[data-testid="edge-label"]')].find((e) => e.querySelector('.edge-label-text')?.textContent === label)!;
         const lr = lab.getBoundingClientRect();
         const mid = at(len / 2);
         // What is on top at the middle of the line: make the thin dashed stroke hittable first.
