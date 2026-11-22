@@ -12,6 +12,7 @@ import { startLocalNostrRelay, type LocalRelay } from './testing/local-nostr-rel
 const req = createRequire(new URL('../../../apps/cli/package.json', import.meta.url));
 const tsxLoader = req.resolve('tsx');
 const peerScript = fileURLToPath(new URL('./testing/node-peer.ts', import.meta.url));
+const boardPeerScript = fileURLToPath(new URL('./testing/node-board-peer.ts', import.meta.url));
 
 interface Peer {
   name: string;
@@ -22,7 +23,11 @@ interface Peer {
 }
 
 function startPeer(relay: string, secret: string, name: string, block?: string): Peer {
-  const proc = spawn(process.execPath, ['--import', tsxLoader, peerScript, relay, secret, name, ...(block ? [block] : [])], {
+  return spawnPeer(name, [peerScript, relay, secret, name, ...(block ? [block] : [])]);
+}
+
+function spawnPeer(name: string, args: string[]): Peer {
+  const proc = spawn(process.execPath, ['--import', tsxLoader, ...args], {
     stdio: ['pipe', 'pipe', 'inherit'],
   });
   const events: any[] = [];
@@ -105,4 +110,28 @@ describe('Trystero over a local Nostr relay, real WebRTC in Node', () => {
     expect(new Set(states.map((s) => s.text)).size).toBe(1);
     console.log('three peers stats', JSON.stringify(states.map((s, i) => ({ peer: 'ABC'[i], ...s.stats }))));
   }, 60_000);
+});
+
+describe('BoardPeer over real WebRTC', () => {
+  it('a guest asks, the host approves with one click, the hello is bound to the link, and both sync', async () => {
+    const secret = 'board-' + Math.random();
+    const host = spawnPeer('host', [boardPeerScript, relay.url, secret, 'host', 'Raizal', 'engineering']);
+    peers.push(host);
+    const { root } = await host.waitFor((e) => e.ev === 'ready');
+    const guest = spawnPeer('guest', [boardPeerScript, relay.url, secret, 'guest', 'Dewi', 'product', root]);
+    peers.push(guest);
+    await host.waitFor((e) => e.ev === 'state' && e.requests.includes('Dewi'), 30_000);
+    await guest.waitFor((e) => e.ev === 'state' && e.join === 'waiting');
+    host.send({ cmd: 'approve' });
+    const inState = await guest.waitFor((e) => e.ev === 'state' && e.join === 'in');
+    // Both ends read the same DTLS fingerprints from the link.
+    const hostState = await host.waitFor((e) => e.ev === 'state' && e.bindings.length === 1);
+    expect(inState.bindings[0]).toMatch(/^sha-256 [0-9a-f:]+\|sha-256 [0-9a-f:]+$/);
+    expect(hostState.bindings[0]).toBe(inState.bindings[0]);
+    host.send({ cmd: 'insert', text: 'from Raizal' });
+    await guest.waitFor((e) => e.ev === 'state' && e.text === 'from Raizal');
+    guest.send({ cmd: 'insert', text: ', from Dewi' });
+    await host.waitFor((e) => e.ev === 'state' && e.text === 'from Raizal, from Dewi');
+    await host.waitFor((e) => e.ev === 'state' && e.online.includes('Dewi'));
+  }, 90_000);
 });
