@@ -99,7 +99,7 @@ export function App({ conn }: { conn: BoardConnection }) {
     if (view.me) return view.me;
     const owner = state.owner || 'me';
     return { name: owner, side: state.devices.get(owner)?.side ?? 'product' };
-  }, [view.me, state.owner, state.devices]);
+  }, [view.me?.name, view.me?.side, state.owner, state.devices]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cursors = useMemo<CursorOf[] | undefined>(() => {
     if (!view.peer) return undefined;
@@ -108,7 +108,8 @@ export function App({ conn }: { conn: BoardConnection }) {
       return c ? [{ id: o.id, name: o.name, ...c, color: SIDE_COLOR[o.side] ?? '#555' }] : [];
     });
   }, [view.peer]);
-  const onPointer = useMemo(() => (session ? (p: { x: number; y: number }) => session.setCursor(p) : undefined), [session]);
+  // Only a shared board shows pointers to other people.
+  const onPointer = useMemo(() => (session && shared ? (p: { x: number; y: number }) => session.setCursor(p) : undefined), [session, shared]);
 
   const actions = useMemo<BoardActions>(
     () => ({

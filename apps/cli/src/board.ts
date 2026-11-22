@@ -201,8 +201,9 @@ export async function startBoard(opts: BoardOptions): Promise<RunningBoard> {
   type Command = { cmd?: string; pk?: unknown; cursor?: unknown; appUrl?: unknown };
   const onCommand = (c: Command) => {
     const p = net?.peer;
-    if (c.cmd === 'cursor') p?.setCursor(c.cursor ?? null);
-    else if (c.cmd === 'approve' && typeof c.pk === 'string') p?.approve(c.pk);
+    // A pointer moves often and changes nothing in the snapshot: no new snapshot for it.
+    if (c.cmd === 'cursor') return void p?.setCursor(c.cursor ?? null);
+    if (c.cmd === 'approve' && typeof c.pk === 'string') p?.approve(c.pk);
     else if (c.cmd === 'deny' && typeof c.pk === 'string') p?.deny(c.pk);
     else if (c.cmd === 'revoke' && typeof c.pk === 'string') p?.revoke(c.pk);
     else if (c.cmd === 'share') void share(typeof c.appUrl === 'string' ? c.appUrl : undefined).catch((e: Error) => log(e.message));

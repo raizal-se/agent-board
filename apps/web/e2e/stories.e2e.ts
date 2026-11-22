@@ -87,7 +87,7 @@ async function stories(page: Page, n: number): Promise<string[]> {
  * Bring elements into view, big enough to read and press, clear of the bars (the canvas renders a
  * card only in view). The bars sit over the top left of the canvas (taller with a selection), so a
  * plain scrollToContent can leave a card under them and a click there would hit a bar instead.
- * The room is the app's own (bars.ts: 152 px on top on a desktop; 112 on top and 120 below on a phone).
+ * The room is the app's own (bars.ts liveBarRoom: the bars as measured on the page).
  */
 async function focus(page: Page, ...ids: string[]): Promise<void> {
   await page.evaluate((ids) => {
@@ -99,8 +99,7 @@ async function focus(page: Page, ...ids: string[]): Promise<void> {
     const api = (window as unknown as { __board: { api: Api } }).__board.api;
     const els = api.getSceneElements().filter((e) => ids.includes(e.id));
     if (els.length !== ids.length) throw new Error(`not on the canvas: ${ids.join(', ')}`);
-    const narrow = window.matchMedia('(max-width: 640px)').matches;
-    const room = narrow ? { top: 112, bottom: 120 } : { top: 152, bottom: 12 };
+    const room = (window as unknown as { __board: { room(): { top: number; bottom: number } } }).__board.room();
     const x0 = Math.min(...els.map((e) => e.x));
     const y0 = Math.min(...els.map((e) => e.y));
     const x1 = Math.max(...els.map((e) => e.x + e.width));

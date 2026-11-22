@@ -6,7 +6,7 @@ import type * as Y from 'yjs';
 import { selectedIds, undoActivation, type ActivationState } from './activation';
 import { EMBED_KINDS, EMBED_SCHEME, FONT_HELVETICA, kindOf, roughMeasure, type El, type Measure } from './elements';
 import { BlockEmbed } from './embeds';
-import { barRoom, isNarrow } from './bars';
+import { isNarrow, liveBarRoom } from './bars';
 import { contentBounds, firstBoardBounds, firstView, fitTop, inView, readableZoom, type Fit } from './fit';
 import type { GestureState } from './scene';
 import { BoardSync } from './sync';
@@ -93,7 +93,7 @@ function showView(api: ExcalidrawImperativeAPI, f: Fit): void {
 const viewSpace = (api: ExcalidrawImperativeAPI) => {
   const s = api.getAppState();
   const narrow = isNarrow();
-  const room = barRoom(narrow);
+  const room = liveBarRoom();
   return { narrow, space: { width: s.width, height: s.height, top: room.top, bottom: room.bottom, pad: 12 } };
 };
 
@@ -193,7 +193,7 @@ export const BoardCanvas = memo(function BoardCanvas({
     ];
     window.addEventListener('pointercancel', up);
     // For the end-to-end checks: the canvas draws on a <canvas>, so they read the scene here.
-    (window as unknown as { __board?: unknown }).__board = { api, sync, opened: fitted.current };
+    (window as unknown as { __board?: unknown }).__board = { api, sync, opened: fitted.current, room: liveBarRoom };
     onViewport?.({
       center: () => {
         const s = api.getAppState();
@@ -217,7 +217,7 @@ export const BoardCanvas = memo(function BoardCanvas({
           // Bring them into view if they are not (a new note can land past the edge of the view).
           const b = contentBounds(els);
           const s = api.getAppState();
-          const room = barRoom(isNarrow());
+          const room = liveBarRoom();
           if (b && !inView(b, { scrollX: s.scrollX, scrollY: s.scrollY, zoom: s.zoom.value, width: s.width, height: s.height, ...room })) {
             api.scrollToContent(els, { animate: false });
           }
