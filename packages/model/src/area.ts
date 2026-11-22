@@ -27,6 +27,7 @@ import {
   type Rect,
 } from './layout';
 import { isDecision, isSticky, type DecisionItem, type Person, type StickyItem } from './native';
+import { MILESTONE_H, MILESTONE_W, milestonesMap, STORY_H, STORY_W, storiesMap, type MilestoneItem, type StoryItem } from './stories';
 
 /**
  * Which area a file block is in: Product or Engineering. The file can say it (`area:` in front
@@ -96,6 +97,9 @@ export interface GeoInput {
   sides: ReadonlyMap<string, AreaOverride>;
   grids: ReadonlyMap<string, Grid>;
   ownerSide: (owner: string) => Side;
+  /** Milestone cards and story blocks: they sit in the Milestone area. */
+  milestones?: Iterable<Pick<MilestoneItem, 'id' | 'frame'>>;
+  stories?: Iterable<Pick<StoryItem, 'id' | 'frame'>>;
 }
 
 /** A frame's shape: its grid, its four areas and size (relative to it), and what is in each area. */
@@ -124,6 +128,8 @@ export function geoInput(doc: Y.Doc): GeoInput {
     sides: new Map(sidesMap(doc).entries()),
     grids: new Map(gridsMap(doc).entries()),
     ownerSide: (owner) => devices.get(owner)?.side ?? 'product',
+    milestones: [...milestonesMap(doc).values()].filter(Boolean),
+    stories: [...storiesMap(doc).values()].filter(Boolean),
   };
 }
 
@@ -150,6 +156,14 @@ export function boardGeometry(input: GeoInput): Map<string, FrameGeo> {
   for (const d of input.decisions) {
     const r = sized(d.id, DECISION_W, DECISION_H);
     if (r) add(d.frame, { ...r, id: d.id, area: 'agreed' });
+  }
+  for (const m of input.milestones ?? []) {
+    const r = sized(m.id, MILESTONE_W, MILESTONE_H);
+    if (r) add(m.frame, { ...r, id: m.id, area: 'milestone' });
+  }
+  for (const st of input.stories ?? []) {
+    const r = sized(st.id, STORY_W, STORY_H);
+    if (r) add(st.frame, { ...r, id: st.id, area: 'milestone' });
   }
   for (const s of input.stickies) {
     const r = s.frame ? sized(s.id, STICKY_W, STICKY_H) : null;

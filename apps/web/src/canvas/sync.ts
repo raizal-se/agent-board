@@ -2,7 +2,7 @@ import { boardMap, canvasMap, type Device, type Person } from '@agent-board/mode
 import type * as Y from 'yjs';
 import { views } from '../board/derive';
 import { readBoard } from '../board/useBoard';
-import { EMBED_SCHEME, kindOf, type El, type Measure } from './elements';
+import { EMBED_KINDS, EMBED_SCHEME, kindOf, type El, type Measure } from './elements';
 import { docElements, heldIds, inGesture, mergeScene, type GestureState } from './scene';
 import { writeScene } from './writeBack';
 
@@ -120,7 +120,7 @@ export class BoardSync {
     for (const e of this.api.getSceneElementsIncludingDeleted()) {
       if (e.isDeleted || e.type !== 'embeddable' || !e.link?.startsWith(EMBED_SCHEME) || this.embedded.has(e.id)) continue;
       const kind = kindOf(e);
-      if (kind !== 'file' && kind !== 'decision' && kind !== 'snapshot') continue;
+      if (!EMBED_KINDS.has(kind!)) continue;
       this.embedded.add(e.id);
       added = true;
     }

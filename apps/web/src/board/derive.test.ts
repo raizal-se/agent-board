@@ -13,7 +13,9 @@ import {
   type FileItem,
   type HumanEdge,
   type Layout,
+  type MilestoneItem,
   type StickyItem,
+  type StoryItem,
 } from '@agent-board/model';
 import { describe, expect, it } from 'vitest';
 import { agentColor, views } from './derive';
@@ -140,5 +142,82 @@ describe('views', () => {
       ['fe:x->a/y.md#calls', 'file'],
       ['e1', 'human'],
     ]);
+  });
+});
+
+describe('stories and milestones', () => {
+  const ms = (id: string, extra: Partial<MilestoneItem> = {}): MilestoneItem => ({
+    id,
+    kind: 'milestone',
+    frame: 'frame:a',
+    number: 1,
+    name: 'Pay by card',
+    goal: 'pay',
+    author: 'me',
+    createdAt: 0,
+    updatedAt: 0,
+    ...extra,
+  });
+  const st = (id: string, number: number, extra: Partial<StoryItem> = {}): StoryItem => ({
+    id,
+    kind: 'story',
+    milestone: 'm1',
+    frame: 'frame:a',
+    number,
+    title: `T${number}`,
+    story: 's',
+    covers: [],
+    check: 'c',
+    owner: 'Mei',
+    size: 'S',
+    blockedBy: [],
+    accepts: [],
+    author: 'me',
+    authorKind: 'human',
+    linear: null,
+    createdAt: 0,
+    updatedAt: 0,
+    ...extra,
+  });
+  const form = item('f', 'ui/card-form.html', 'frame:a', { type: 'html', text: '<p>now</p>', hash: 'h2', area: 'product' });
+  const flow = item('w', 'a/flow.md', 'frame:a', { text: 'flow', area: 'engineering' });
+  const api = item('p', 'a/api.md', 'frame:a', { text: 'api', area: 'engineering' });
+  const agreed: Agreement = { item: 'f', snapshot: { text: '<p>agreed</p>', hash: 'h1', type: 'html', at: 1 }, accepts: [{ name: 'me', side: 'product', at: 1 }] };
+
+  it('puts covered cards in halves by their area, previews the snapshot, and counts the milestone', () => {
+    const v = views({
+      frames,
+      items: [form, flow, api],
+      edges: [],
+      layout: new Map(),
+      agreements: new Map([['f', agreed]]),
+      milestones: [ms('m1')],
+      stories: [st('story-1', 1, { covers: ['f', 'w', 'p'], accepts: [{ name: 'me', side: 'product', at: 2 }] }), st('story-2', 2, { blockedBy: ['story-1'] })],
+    });
+    const one = v.stories.get('story-1')!;
+    expect(one.product.map((c) => c.id)).toEqual(['f']);
+    expect(one.product[0]).toMatchObject({ state: 'changed after agreement', preview: { type: 'html', text: '<p>agreed</p>' } });
+    expect(one.engineering.map((c) => [c.id, c.state, c.preview?.text])).toEqual([
+      ['w', 'not agreed', 'flow'],
+      ['p', 'not agreed', 'api'],
+    ]);
+    expect(one.facts.coverChanged).toBe(true);
+    expect(v.stories.get('story-2')!.blockerNames).toEqual(['Story 1']);
+    expect(v.storyEdges).toEqual([{ id: 'story-1~blocks~story-2', from: 'story-1', to: 'story-2' }]);
+    expect(v.milestones.get('m1')!.count).toBe('2 stories · 1 approved · 1 can start');
+    expect(v.areaOf.get('story-1')).toBe('milestone');
+    expect(v.noMilestone.has('frame:a')).toBe(false);
+    expect(v.noMilestone.has('frame:b')).toBe(true);
+  });
+
+  it('a milestone file block says how many stories it made and how many entries are new', () => {
+    const text = '# Milestone 1: Pay\n## T1\n- story: s\n- check: c\n## New one\n- story: s\n- check: c\n';
+    const file = item('mf', 'a/milestone-1.md', 'frame:a', { text });
+    const base = { frames, items: [file], edges: [], layout: new Map<string, Layout>() };
+    expect(views(base).blocks.get('mf')!.milestoneFile).toEqual({ milestone: null, stories: 0, fresh: 2 });
+    const m = ms('m1', { source: { item: 'mf', path: file.path, titles: ['T1'], at: 0 } });
+    expect(views({ ...base, milestones: [m], stories: [st('story-1', 1)] }).blocks.get('mf')!.milestoneFile).toEqual({ milestone: 'm1', stories: 1, fresh: 1 });
+    expect(views(base).blocks.get('mf')!.item.path).toBe('a/milestone-1.md');
+    expect(views({ ...base, items: [item('n', 'a/notes.md', 'frame:a')] }).blocks.get('n')!.milestoneFile).toBeUndefined();
   });
 });

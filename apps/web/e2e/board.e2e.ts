@@ -111,7 +111,8 @@ test('each frame is one board of four areas: Product, Engineering, Agreed and Mi
   expect(r('agreed').y).toBeGreaterThan(r('product').y + r('product').height);
   expect(r('milestone').x).toBe(r('engineering').x);
   expect(r('milestone').y).toBe(r('agreed').y);
-  expect(els.find((e) => e.id === `${r('milestone').frameId}~zonehint:milestone`)?.text).toBe('Milestone planning comes later');
+  // No milestone yet: the Milestone area offers to start one.
+  expect(els.find((e) => e.id === `${r('milestone').frameId}~milestone-start`)?.ab?.ab).toBe('milestone-start');
   // The owner works on the product side: every file without an area is in Product.
   for (const p of ['checkout/flow.md', 'checkout/api.md', 'checkout/later.md']) expect(areaOfPath(els, p)).toBe('product');
   await expect(block(page, 'checkout/api.md')).toHaveAttribute('data-area', 'product');

@@ -19,7 +19,12 @@ export type Kind =
   | 'file-edge'
   | 'file-edge-label'
   | 'link'
-  | 'link-label';
+  | 'link-label'
+  | 'milestone'
+  | 'milestone-start'
+  | 'story'
+  | 'story-edge'
+  | 'story-edge-label';
 
 export interface BoundRef {
   id: string;
@@ -63,6 +68,9 @@ export interface El {
   customData?: Record<string, unknown>;
   [key: string]: unknown;
 }
+
+/** Kinds drawn as an embed with our own content in it. */
+export const EMBED_KINDS: ReadonlySet<Kind> = new Set<Kind>(['file', 'decision', 'snapshot', 'story', 'milestone', 'milestone-start']);
 
 export const kindOf = (el: Pick<El, 'customData'> | undefined): Kind | undefined => el?.customData?.ab as Kind | undefined;
 

@@ -20,6 +20,7 @@ import {
 } from './network';
 import { startServer, type BoardServer } from './server';
 import { autoExport, autoSave, autoSettle, DOC_FILE, writeExport, EXPORT_FILE, loadDoc, STATE_DIR, type AutoSave } from './store';
+import { autoImport } from './milestones';
 import { fileExists, watchFolder } from './watcher';
 
 /** The built web app, next to this package in the monorepo (AGENT_BOARD_WEB_DIR for tests). */
@@ -117,6 +118,7 @@ export async function startBoard(opts: BoardOptions): Promise<RunningBoard> {
   const exportFile = join(folder, STATE_DIR, EXPORT_FILE);
   const exporter = autoExport(doc, exportFile, 300, online);
   const watcher = watchFolder(writer, folder, { poll: opts.poll, log });
+  const importer = autoImport(doc, watcher.ready, { log });
 
   const listeners = new Set<() => void>();
   const changed = () => listeners.forEach((l) => l());
@@ -188,6 +190,7 @@ export async function startBoard(opts: BoardOptions): Promise<RunningBoard> {
     });
   } catch (err) {
     await watcher.close();
+    importer.close();
     writer.dispose();
     settler?.close();
     exporter.close();
@@ -245,6 +248,7 @@ export async function startBoard(opts: BoardOptions): Promise<RunningBoard> {
     stop: async () => {
       clearInterval(shareCheck);
       await watcher.close();
+      importer.close();
       // Pending deletes stay undecided: if one was half of a rename, the next start still sees
       // the moved file and keeps its block. The first scan then marks the rest gone.
       writer.dispose();

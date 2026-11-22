@@ -182,7 +182,8 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 .excalidraw__embeddable-container .area-option,
 .excalidraw__embeddable-container .card-btn,
 .excalidraw__embeddable-container .card-fade-open,
-.excalidraw__embeddable-container .changed-mark button { pointer-events: auto; }
+.excalidraw__embeddable-container .changed-mark button,
+.excalidraw__embeddable-container .story-link { pointer-events: auto; }
 
 /*
  * Excalidraw shows a link popup over a selected embed when the pointer rests on it. Board cards
@@ -236,3 +237,61 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 .warning { color: #8a5a00; background: #fffbea; border: 1px solid #e9c46a; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
 .waiting-mark { color: #8a5a00; font-weight: 600; }
 .editing-dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 0 3px rgb(245 158 11 / 25%); flex: none; }
+
+/* Milestones and stories (design 5). */
+.story, .milestone, .milestone-start { width: 100%; height: 100%; display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line); border-left: 4px solid #6D28D9; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgb(0 0 0 / 6%); }
+.story.is-approved { border-left-color: #16A34A; }
+.story-head, .milestone-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); background: #f7f5fc; }
+.story-number { font-size: 34px; font-weight: 800; line-height: 1; color: #4C1D95; min-width: 1.2em; text-align: center; }
+.story-title, .milestone-name { flex: 1; min-width: 0; font-weight: 700; font-size: 15px; overflow-wrap: anywhere; }
+.story-untitled { color: var(--muted); font-weight: 400; }
+.story-actions { gap: 6px; }
+.story-block { font-size: 12px; color: #92400E; background: #FEF3C7; border-radius: 4px; padding: 2px 6px; }
+.story-rejected, .story-warning { margin: 0; padding: 4px 10px; font-size: 12px; border-radius: 0; border-bottom: 1px solid var(--line); }
+.story-sentence { padding: 8px 10px; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.story-halves { display: flex; flex-direction: column; gap: 8px; padding: 0 10px 8px; }
+.story-half { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.story-half.half-product { border-top: 3px solid #2563EB; }
+.story-half.half-engineering { border-top: 3px solid #EA580C; }
+.story-half-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 8px; font-size: 12px; }
+.story-half-label { font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 10px; letter-spacing: 0.04em; }
+.story-half-name { font-weight: 600; overflow-wrap: anywhere; }
+.story-more { font-size: 11px; font-weight: 700; background: #EDE9FE; color: #4C1D95; border-radius: 10px; padding: 0 6px; }
+.story-tag { font-size: 11px; border-radius: 4px; padding: 0 6px; }
+.story-tag.tag-draft { background: #F3F4F6; color: #374151; }
+.story-tag.tag-changed { background: #FEF3C7; color: #78350F; }
+.story-half-empty { padding: 10px 8px; color: var(--muted); font-size: 12px; font-style: italic; }
+.story-preview { height: 140px; overflow: hidden; border-top: 1px solid var(--line); background: #fff; position: relative; }
+.story-preview-scale { transform: scale(0.78); transform-origin: top left; width: 128%; pointer-events: none; }
+.story-preview-md { font-size: 11px; padding: 4px 8px; pointer-events: none; }
+.story-link { font: inherit; font-size: 12px; min-height: 32px; width: 100%; text-align: left; padding: 0 8px; border: 0; border-top: 1px solid var(--line); background: #fafafa; color: var(--accent); cursor: pointer; }
+.story-foot { border-top: 1px solid var(--line); padding: 6px 10px 8px; font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+.story-key { font-weight: 700; text-transform: uppercase; font-size: 10px; letter-spacing: 0.04em; }
+.story-check { color: var(--ink); overflow-wrap: anywhere; }
+.story-facts { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.story-facts .can-start { color: #15803D; font-weight: 600; }
+.story-facts .is-blocked { color: #B45309; font-weight: 600; }
+.milestone-label { font-weight: 800; color: #4C1D95; white-space: nowrap; }
+.milestone-goal { padding: 6px 10px 0; font-size: 14px; overflow-wrap: anywhere; }
+.milestone-count { padding: 4px 10px; font-size: 13px; font-weight: 600; color: #4C1D95; }
+.milestone-source { padding: 0 10px 8px; font-size: 11px; color: var(--muted); }
+.milestone-start { border-style: dashed; border-left-width: 1px; background: rgb(255 255 255 / 70%); justify-content: center; align-items: center; gap: 12px; padding: 16px; text-align: center; color: var(--muted); font-size: 16px; }
+.milestone-file { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 8px; border-bottom: 1px solid var(--line); font-size: 12px; background: #f7f5fc; color: #4C1D95; }
+.excalidraw__embeddable-container .story, .excalidraw__embeddable-container .milestone { border-radius: 8px; }
+
+/* Story dialogs. */
+.dialog-wide { width: min(560px, 100%); max-height: calc(100vh - 24px); }
+.dialog-scroll { display: flex; flex-direction: column; gap: 10px; overflow: auto; min-height: 0; }
+.dialog-warn { color: #92400E; background: #FEF3C7; border-radius: 4px; padding: 4px 8px; font-size: 12px; }
+.dialog-empty { color: var(--muted); font-size: 13px; padding: 6px 0; }
+.size-pick { display: flex; gap: 6px; flex-wrap: wrap; }
+.size-option[aria-checked='true'] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.choice-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 6px; overflow: auto; max-height: 40vh; }
+.choice { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 10px; color: var(--ink); font-size: 14px; cursor: pointer; }
+.choice + .choice { border-top: 1px solid var(--line); }
+.choice input { width: 20px; height: 20px; flex: none; }
+.choice-button { font: inherit; text-align: left; border: 0; background: #fff; width: 100%; }
+.choice-text { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.choice-note { color: var(--muted); font-size: 12px; }
+.story-rejected { white-space: normal; overflow-wrap: anywhere; }
+.story .card-agree:disabled[aria-pressed='false'] { background: #fff; color: var(--muted); border-color: var(--line); }

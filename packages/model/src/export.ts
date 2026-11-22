@@ -6,6 +6,7 @@ import { boardIdOf, boardMap, type Device, type Side } from './index';
 import { framesMap, isFileItem, itemsMap } from './items';
 import { activeMembers, boardModeOf, pendingAccepts, peopleOf } from './people';
 import { entryText, isComment, isDecision, isSticky, isThread, type CommentItem } from './native';
+import { milestoneCount, milestonesMap, storiesOf, storyFacts, storyWorld } from './stories';
 
 /**
  * The board as JSON for agents (design 3.1 and 8). It holds meaning only: no `x`, `y` or size.
@@ -117,6 +118,59 @@ export function exportBoard(doc: Y.Doc, opts: { mode?: AgreeMode; online?: reado
       : { id: e.id, source: 'human' as const, from: e.from, to: e.to, to_path: null, label: e.label, author: e.author },
   );
 
+  const world = storyWorld(doc);
+  const allStories = [...world.stories.values()].filter(Boolean);
+  const milestoneList = [...milestonesMap(doc).values()].filter(Boolean).sort((a, b) => a.frame.localeCompare(b.frame) || a.number - b.number || a.id.localeCompare(b.id));
+  const milestones = milestoneList.map((m) => {
+    const list = storiesOf(allStories, m.id);
+    return {
+      id: m.id,
+      frame: m.frame,
+      number: m.number,
+      name: m.name,
+      goal: m.goal,
+      author: m.author,
+      source_path: m.source?.path ?? null,
+      imported_titles: m.source?.titles ?? [],
+      stories: list.map((s) => s.id),
+      summary: milestoneCount(list, world.stories, mode),
+      linear: null,
+      created_at: iso(m.createdAt),
+      updated_at: iso(m.updatedAt),
+    };
+  });
+  const stories = milestoneList.flatMap((m) => storiesOf(allStories, m.id)).map((s) => {
+    const f = storyFacts(s, world, mode);
+    return {
+      id: s.id,
+      milestone: s.milestone,
+      frame: s.frame,
+      number: s.number,
+      title: s.title,
+      story: s.story,
+      covers: f.covers.map((c) => ({ id: c.id, path: c.path, area: c.area, state: c.state })),
+      covers_missing: s.missing ?? [],
+      check: s.check,
+      owner: s.owner || null,
+      size: s.size,
+      blocked_by: s.blockedBy,
+      can_start: f.canStart,
+      accepts: s.accepts.map((a) => ({ name: a.name, side: a.side, at: iso(a.at) })),
+      approved: f.approved,
+      cannot_accept: f.acceptBlock,
+      rejected: s.rejected ? { by: s.rejected.by, at: iso(s.rejected.at), reason: s.rejected.reason } : null,
+      covered_card_changed: f.coverChanged,
+      ready_for_linear: f.readyForLinear,
+      linear: s.linear,
+      author: s.author,
+      author_kind: s.authorKind,
+      source: s.source ? { path: s.source.path, title: s.source.title } : null,
+      extra_fields: s.extra ?? {},
+      created_at: iso(s.createdAt),
+      updated_at: iso(s.updatedAt),
+    };
+  });
+
   return {
     format: EXPORT_FORMAT,
     read_only: 'Agents read this file. Never edit it: the board rewrites it after each change.',
@@ -135,6 +189,8 @@ export function exportBoard(doc: Y.Doc, opts: { mode?: AgreeMode; online?: reado
     edges,
     comments,
     decisions,
+    milestones,
+    stories,
   };
 }
 

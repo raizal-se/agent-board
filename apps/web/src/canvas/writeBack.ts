@@ -12,7 +12,9 @@ import {
   isSticky,
   itemsMap,
   layoutMap,
+  milestonesMap,
   moveSticky,
+  storiesMap,
   setEdgeLabel,
   setStickyText,
   sidesMap,
@@ -154,6 +156,19 @@ export function writeScene(doc: Y.Doc, elements: readonly El[], seen: Map<string
           setLayout(el.id, byPerson(layout.get(el.id), next));
           break;
         }
+        case 'story':
+        case 'milestone': {
+          // Deleting one on the canvas is not a delete: the next merge puts it back.
+          if (el.isDeleted) break;
+          const item = kind === 'story' ? storiesMap(doc).get(el.id) : milestonesMap(doc).get(el.id);
+          if (!item) break;
+          const z = byId.get(`${item.frame}~zone:milestone`);
+          if (!z) break;
+          const old = layout.get(el.id);
+          const next: Layout = { ...old, x: Math.round(el.x - z.x), y: Math.round(el.y - z.y), w: Math.round(el.width), h: Math.round(el.height) };
+          setLayout(el.id, byPerson(old, next));
+          break;
+        }
         case 'sticky': {
           const s = items.get(el.id);
           if (!isSticky(s)) break;
@@ -191,6 +206,9 @@ export function writeScene(doc: Y.Doc, elements: readonly El[], seen: Map<string
         case 'file-edge':
         case 'file-edge-label':
         case 'snapshot-link':
+        case 'story-edge':
+        case 'story-edge-label':
+        case 'milestone-start':
         case 'zone':
         case 'zone-label':
           break;
