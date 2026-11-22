@@ -59,3 +59,4 @@ export * from './canvas';
 export * from './diff';
 export * from './export';
 export * from './people';
+export * from './agent-prompt';
