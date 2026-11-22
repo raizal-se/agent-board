@@ -1,7 +1,35 @@
 import { stripFrontMatter } from '@agent-board/formats';
 import DOMPurify from 'dompurify';
 import { Marked, type Tokens } from 'marked';
-import { PeleError, render as renderMermaid } from 'pele';
+
+/**
+ * Pele (the mermaid renderer) is about a third of the page's code, and only a card with a mermaid
+ * fence needs it: it loads on its own, when the first such card shows (see `MarkdownBody`).
+ */
+type Pele = typeof import('pele');
+let pele: Pele | null = null;
+let peleLoading: Promise<void> | null = null;
+
+export const mermaidReady = () => pele !== null;
+
+export function loadMermaid(): Promise<void> {
+  peleLoading ??= import('pele').then((m) => {
+    pele = m;
+  });
+  return peleLoading;
+}
+
+/** Whether markdown has a mermaid fence (so it needs Pele). */
+export const hasMermaid = (text: string) => /^ {0,3}(`{3,}|~{3,})[ \t]*mermaid\b/m.test(text);
+
+/**
+ * Each fence's rendered diagram, by its source: pan, zoom, a card coming back into view, the full
+ * view and a snapshot of the same text never render it again.
+ */
+const diagrams = new Map<string, string>();
+const DIAGRAMS_MAX = 300;
+/** How many times Pele has rendered (for tests). */
+export const mermaidStats = { renders: 0 };
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -9,11 +37,23 @@ function escapeHtml(s: string): string {
 
 /** Renders one mermaid fence with Pele. A broken fence shows the raw text and the parse error. */
 export function renderMermaidFence(source: string): string {
+  // Until Pele loads, an empty diagram box; the card renders again once it has loaded.
+  if (!pele) return '<div class="mermaid-block mermaid-loading"></div>';
+  const cached = diagrams.get(source);
+  if (cached !== undefined) return cached;
+  const html = renderFence(pele, source);
+  if (diagrams.size >= DIAGRAMS_MAX) diagrams.delete(diagrams.keys().next().value!);
+  diagrams.set(source, html);
+  return html;
+}
+
+function renderFence(p: Pele, source: string): string {
+  mermaidStats.renders++;
   try {
-    const { svg } = renderMermaid(source);
+    const { svg } = p.render(source);
     return `<div class="mermaid-block">${svg}</div>`;
   } catch (err) {
-    const where = err instanceof PeleError && err.line > 0 ? ` (line ${err.line}, column ${err.column})` : '';
+    const where = err instanceof p.PeleError && err.line > 0 ? ` (line ${err.line}, column ${err.column})` : '';
     const message = err instanceof Error ? err.message : String(err);
     return (
       `<div class="mermaid-error" role="alert">` +

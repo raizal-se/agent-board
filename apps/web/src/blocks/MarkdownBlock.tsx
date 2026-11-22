@@ -1,10 +1,16 @@
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import type { BlockData } from '../board/derive';
 import { BlockChrome } from './BlockChrome';
-import { renderMarkdown } from './markdown';
+import { hasMermaid, loadMermaid, mermaidReady, renderMarkdown } from './markdown';
 
 export function MarkdownBody({ text }: { text: string }) {
-  const html = useMemo(() => renderMarkdown(text), [text]);
+  // A mermaid fence needs Pele, loaded on first need; the body renders again once it is here.
+  const [ready, setReady] = useState(mermaidReady);
+  const waiting = !ready && hasMermaid(text);
+  useEffect(() => {
+    if (waiting) void loadMermaid().then(() => setReady(true));
+  }, [waiting]);
+  const html = useMemo(() => renderMarkdown(text), [text, ready]);
   return <div className="markdown-body" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
