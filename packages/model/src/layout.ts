@@ -125,3 +125,40 @@ export function nextFrameSpot(doc: Y.Doc): Layout {
   }
   return { x: right + FRAME_GAP, y: 0 };
 }
+
+/** Where a frame is and how big it is now. A frame with no layout sits at the origin, as on the canvas. */
+export function frameRect(doc: Y.Doc, frame: string): Rect {
+  const l = layoutMap(doc).get(frame);
+  return { x: l?.x ?? 0, y: l?.y ?? 0, ...frameSize(takenIn(doc, frame)) };
+}
+
+/**
+ * Move frames apart so no two overlap, and save the moved positions. Frames are taken left to
+ * right (then top to bottom, then by name); a frame that overlaps one before it moves right, past
+ * that frame and a gap, until it is clear. A frame that is clear keeps its place, wherever it was
+ * dragged. Frames grow as items are added, and a board saved with narrower frames can overlap on
+ * load: run this after load and after changes. Returns how many frames moved.
+ */
+export function settleFrames(doc: Y.Doc): number {
+  const frames = [...framesMap(doc).values()].map((f) => ({ id: f.id, name: f.name, rect: frameRect(doc, f.id) }));
+  frames.sort((a, b) => a.rect.x - b.rect.x || a.rect.y - b.rect.y || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  const placed: Rect[] = [];
+  const moved: { id: string; x: number }[] = [];
+  for (const f of frames) {
+    const r = { ...f.rect };
+    for (;;) {
+      const hit = placed.filter((p) => overlaps(p, r));
+      if (hit.length === 0) break;
+      r.x = Math.max(...hit.map((p) => p.x + p.w + FRAME_GAP));
+    }
+    if (r.x !== f.rect.x) moved.push({ id: f.id, x: r.x });
+    placed.push(r);
+  }
+  if (moved.length > 0) {
+    const layout = layoutMap(doc);
+    doc.transact(() => {
+      for (const m of moved) layout.set(m.id, { ...layout.get(m.id), x: m.x, y: layout.get(m.id)?.y ?? 0 });
+    });
+  }
+  return moved.length;
+}

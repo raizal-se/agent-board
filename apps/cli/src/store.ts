@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { createBoardDoc, exportBoard } from '@agent-board/model';
+import { createBoardDoc, exportBoard, settleFrames } from '@agent-board/model';
 import * as Y from 'yjs';
 
 /** Where the CLI keeps the board for a watched folder. The watcher ignores this folder. */
@@ -56,6 +56,16 @@ export function autoSave(doc: Y.Doc, file: string, delayMs = 150): AutoSave {
 export function autoExport(doc: Y.Doc, file: string, delayMs = 300): AutoSave {
   writeExport(doc, file);
   return afterChanges(doc, delayMs, () => writeExport(doc, file), 1000);
+}
+
+/**
+ * Keep frames from overlapping: settle them now (a board saved with narrower frames can overlap on
+ * load) and shortly after each burst of changes (a frame grows as items are added or moved). The
+ * moved positions go into the doc, so they are saved and reach the page.
+ */
+export function autoSettle(doc: Y.Doc, delayMs = 100): AutoSave {
+  settleFrames(doc);
+  return afterChanges(doc, delayMs, () => settleFrames(doc));
 }
 
 /** Run `write` `delayMs` after the last change; with `maxWaitMs`, no later than that after the first. */

@@ -9,13 +9,16 @@ import {
   changedAfterAgreement,
   fileEdgesOf,
   fileItemOf,
+  frameRect,
+  framesMap,
   itemsMap,
   layoutMap,
+  type Rect,
   type BoardExport,
 } from '@agent-board/model';
 import { afterEach, describe, expect, it } from 'vitest';
 import { startBoard, type RunningBoard } from './board';
-import { DOC_FILE, EXPORT_FILE, loadDoc, STATE_DIR } from './store';
+import { DOC_FILE, EXPORT_FILE, loadDoc, saveDoc, STATE_DIR } from './store';
 import { connectTab, fakeWebDir, itemAt, tempDir, until, write } from './test-helpers';
 
 const identity = { name: 'dewi', side: 'product' as const };
@@ -30,6 +33,16 @@ async function board(folder: string): Promise<RunningBoard> {
   cleanup.push(() => b.stop());
   await b.ready;
   return b;
+}
+
+const overlap = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+/** Pairs of frames that overlap, by name. */
+function overlapping(doc: Parameters<typeof frameRect>[0]): string[] {
+  const frames = [...framesMap(doc).values()].map((f) => ({ name: f.name, r: frameRect(doc, f.id) }));
+  const out: string[] = [];
+  for (let i = 0; i < frames.length; i++)
+    for (let j = i + 1; j < frames.length; j++) if (overlap(frames[i]!.r, frames[j]!.r)) out.push(`${frames[i]!.name}/${frames[j]!.name}`);
+  return out;
 }
 
 async function tab(port: number) {
@@ -136,6 +149,47 @@ describe('agent-board watch (real folder, real WebSocket)', () => {
     expect(layoutMap(t2.doc).get(a.id)).toMatchObject({ x: 777, y: 555 });
     expect(itemAt(t2.doc, 'b.md')?.gone).toBe(true);
     expect(existsSync(join(folder, STATE_DIR, DOC_FILE))).toBe(true);
+  });
+
+  it('a board saved with old narrow frames loads with no overlap, and the new places are saved', async () => {
+    const folder = tempDir('ab-folder-');
+    write(folder, 'checkout/flow.md', 'A');
+    write(folder, 'ui/form.html', '<p>B</p>');
+    write(folder, 'docs/a.md', 'C');
+    const b1 = await board(folder);
+    await until(() => framesMap(b1.doc).size === 3, 3000, 'three frames');
+    await b1.stop();
+    cleanup.length = 0;
+
+    // Rewrite the saved board as slice 1 left it: frames 1000 wide, 120 apart.
+    const file = join(folder, STATE_DIR, DOC_FILE);
+    const old = loadDoc(file);
+    const ids = [...framesMap(old).values()].sort((a, b) => a.name.localeCompare(b.name)).map((f) => f.id);
+    ids.forEach((id, i) => layoutMap(old).set(id, { x: i * 1120, y: 0 }));
+    saveDoc(old, file);
+    expect(overlapping(old)).not.toEqual([]);
+
+    const b2 = await board(folder);
+    const t2 = await tab(b2.server.port);
+    await until(() => framesMap(t2.doc).size === 3, 3000, 'frames in the tab');
+    expect(overlapping(b2.doc)).toEqual([]);
+    expect(overlapping(t2.doc)).toEqual([]);
+    await until(() => overlapping(loadDoc(file)).length === 0, 3000, 'saved to disk');
+  });
+
+  it('a frame that grows pushes the next frame clear of it', async () => {
+    const folder = tempDir('ab-folder-');
+    write(folder, 'a/x.md', 'A');
+    write(folder, 'b/y.md', 'B');
+    const b = await board(folder);
+    const t = await tab(b.server.port);
+    const x = await until(() => itemAt(t.doc, 'a/x.md'), 3000, 'a/x.md');
+    expect(overlapping(b.doc)).toEqual([]);
+    // The tab drags a block far right in frame a: a grows over b.
+    layoutMap(t.doc).set(x.id, { x: 2400, y: 100 });
+    await until(() => layoutMap(b.doc).get(x.id)?.x === 2400, 3000, 'drag reached the CLI');
+    await until(() => overlapping(b.doc).length === 0, 3000, 'b moved clear');
+    await until(() => overlapping(t.doc).length === 0, 3000, 'the tab sees it');
   });
 
   it('a save on an agreed block marks it changed and keeps the snapshot', async () => {

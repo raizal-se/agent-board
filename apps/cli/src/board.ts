@@ -6,7 +6,7 @@ import type * as Y from 'yjs';
 import { BoardWriter } from './board-writer';
 import type { Identity } from './config';
 import { startServer, type BoardServer } from './server';
-import { autoExport, autoSave, DOC_FILE, EXPORT_FILE, loadDoc, STATE_DIR } from './store';
+import { autoExport, autoSave, autoSettle, DOC_FILE, EXPORT_FILE, loadDoc, STATE_DIR } from './store';
 import { fileExists, watchFolder } from './watcher';
 
 /** The built web app, next to this package in the monorepo. */
@@ -66,6 +66,7 @@ export async function startBoard(opts: BoardOptions): Promise<RunningBoard> {
     exists: fileExists(folder),
     renameWindowMs: opts.renameWindowMs,
   });
+  const settler = autoSettle(doc);
   const exporter = autoExport(doc, join(folder, STATE_DIR, EXPORT_FILE));
   const watcher = watchFolder(writer, folder, { poll: opts.poll, log });
   let server: BoardServer;
@@ -74,6 +75,7 @@ export async function startBoard(opts: BoardOptions): Promise<RunningBoard> {
   } catch (err) {
     await watcher.close();
     writer.dispose();
+    settler.close();
     exporter.close();
     saver.close();
     throw err;
@@ -91,6 +93,7 @@ export async function startBoard(opts: BoardOptions): Promise<RunningBoard> {
       // the moved file and keeps its block. The first scan then marks the rest gone.
       writer.dispose();
       await server.close();
+      settler.close();
       exporter.close();
       saver.close();
       doc.destroy();
