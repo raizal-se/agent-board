@@ -19,6 +19,7 @@ import {
   MIN_GRID,
   addMilestone,
   addStory,
+  milestonesMap,
   setBlockedBy,
   storiesMap,
   type FileItem,
@@ -557,7 +558,7 @@ describe('milestones and stories on the canvas', () => {
     expect(canvas.get(s1).boundElements).toEqual([{ id, type: 'arrow' }]);
   });
 
-  it('a person moves a story: its place is kept relative to the area and is theirs; a delete is put back', () => {
+  it('a person moves a story: its place is kept relative to the area and is theirs', () => {
     const { s1 } = story();
     const zone = canvas.get('frame:a~zone:milestone');
     canvas.edit(s1, { x: zone.x + 600, y: zone.y + 900 });
@@ -565,10 +566,45 @@ describe('milestones and stories on the canvas', () => {
     vi.runAllTimers();
     expect(layoutOf(s1)).toMatchObject({ x: 600, y: 900 });
     expect(layoutOf(s1)!.placedBy).toBeUndefined();
+  });
+
+  it('a deleted story element deletes the story in the doc, and it does not come back', () => {
+    const { m, s1, s2 } = story();
+    setBlockedBy(doc, s2, [s1]);
+    vi.runAllTimers();
     canvas.edit(s1, { isDeleted: true });
     sync.changed();
     vi.runAllTimers();
-    expect(storiesMap(doc).has(s1)).toBe(true);
-    expect(canvas.get(s1).isDeleted).toBe(false);
+    expect(storiesMap(doc).has(s1)).toBe(false);
+    expect(layoutOf(s1)).toBeUndefined();
+    expect(storiesMap(doc).get(s2)?.blockedBy).toEqual([]);
+    expect(canvas.scene.find((e) => e.id === s1 && !e.isDeleted)).toBeUndefined();
+    expect(canvas.scene.find((e) => e.id === `${s1}~blocks~${s2}` && !e.isDeleted)).toBeUndefined();
+    expect(canvas.get(s2).customData).toMatchObject({ canStart: true });
+    expect(canvas.get(m).customData).toMatchObject({ ab: 'milestone' });
+    // Another doc change: the story stays gone.
+    addSticky(doc, { by: { name: 'ana', side: 'product' }, frame: null, x: 0, y: 0 });
+    vi.runAllTimers();
+    expect(canvas.scene.find((e) => e.id === s1 && !e.isDeleted)).toBeUndefined();
+  });
+
+  it('a deleted milestone element deletes the milestone and its stories', () => {
+    const { m, s1, s2 } = story();
+    canvas.edit(m, { isDeleted: true });
+    sync.changed();
+    vi.runAllTimers();
+    expect(milestonesMap(doc).has(m)).toBe(false);
+    expect(storiesMap(doc).size).toBe(0);
+    for (const id of [m, s1, s2]) expect(canvas.scene.find((e) => e.id === id && !e.isDeleted)).toBeUndefined();
+    expect(canvas.get('frame:a~milestone-start').isDeleted).toBe(false);
+  });
+
+  it('a deleted file block element still comes back', () => {
+    story();
+    canvas.edit('x', { isDeleted: true });
+    sync.changed();
+    vi.runAllTimers();
+    expect(itemsMap(doc).has('x')).toBe(true);
+    expect(canvas.get('x').isDeleted).toBe(false);
   });
 });

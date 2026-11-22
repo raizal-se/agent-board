@@ -2,6 +2,8 @@ import {
   addHumanEdge,
   canvasMap,
   deleteHumanEdge,
+  deleteMilestone,
+  deleteStory,
   deleteSticky,
   areaOf,
   edgesMap,
@@ -82,7 +84,8 @@ function plain(el: El): CanvasShape {
  * Writes what the user changed on the canvas into the doc. Only elements whose version differs
  * from `seen` are looked at, and each write compares first, so the doc's own updates coming back
  * through the canvas write nothing (no echo). Things the canvas may not change (file blocks being
- * deleted, links from files) are left alone: the next merge puts them back.
+ * deleted, links from files) are left alone: the next merge puts them back. A deleted story or
+ * milestone is deleted in the doc: people own them.
  * Returns how many elements changed the doc.
  */
 export function writeScene(doc: Y.Doc, elements: readonly El[], seen: Map<string, number>, me: Person): number {
@@ -158,8 +161,12 @@ export function writeScene(doc: Y.Doc, elements: readonly El[], seen: Map<string
         }
         case 'story':
         case 'milestone': {
-          // Deleting one on the canvas is not a delete: the next merge puts it back.
-          if (el.isDeleted) break;
+          // People own stories and milestones: a delete on the canvas deletes it in the doc.
+          // (The Delete key asks first: see BoardCanvas.)
+          if (el.isDeleted) {
+            if (kind === 'story' ? deleteStory(doc, el.id) : deleteMilestone(doc, el.id, { by: me.name })) writes++;
+            break;
+          }
           const item = kind === 'story' ? storiesMap(doc).get(el.id) : milestonesMap(doc).get(el.id);
           if (!item) break;
           const z = byId.get(`${item.frame}~zone:milestone`);
