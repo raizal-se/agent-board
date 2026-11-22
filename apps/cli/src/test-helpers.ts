@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { boardIdOf, createBoardDoc, itemsMap, type FileItem } from '@agent-board/model';
+import { boardIdOf, createBoardDoc, fileItems, type FileItem } from '@agent-board/model';
 import { boardSocketUrl, WebSocketClientTransport, YjsSync, type SocketLike } from '@agent-board/sync';
 import { WebSocket } from 'ws';
 import type * as Y from 'yjs';
@@ -37,7 +37,7 @@ export async function until<T>(check: () => T, timeoutMs = 5000, what = 'conditi
 }
 
 export function itemAt(doc: Y.Doc, path: string): FileItem | undefined {
-  return [...itemsMap(doc).values()].find((i) => i.path === path);
+  return fileItems(doc).find((i) => i.path === path);
 }
 
 /** A browser tab stand-in: a doc synced with the board over a real WebSocket. */

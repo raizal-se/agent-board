@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { fileTypeOf, parseFileLinks } from '@agent-board/formats';
 import {
+  fileItemOf,
   frameId,
   frameNameForPath,
   framesMap,
@@ -11,7 +12,9 @@ import {
   nextItemSpot,
   resolveEdgesTo,
   syncFileEdges,
+  isFileItem,
   type FileItem,
+  type Side,
 } from '@agent-board/model';
 import type * as Y from 'yjs';
 
@@ -20,6 +23,8 @@ export type UpsertResult = 'new' | 'changed' | 'same' | 'renamed' | 'back' | 'sk
 export interface BoardWriterOptions {
   /** Owner name stored on each item. */
   owner: string;
+  /** The owner's side: a new block starts in that side's zone (design 4.1). Default product. */
+  side?: Side;
   /** Frame name for files at the root of the watched folder. */
   rootName: string;
   /** Does a file still exist at this path (relative to the root)? Used for rename detection. */
@@ -47,6 +52,7 @@ export class BoardWriter {
   private readonly pendingGone = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly windowMs: number;
   private readonly now: () => number;
+  private readonly zone: Side;
 
   constructor(
     private readonly doc: Y.Doc,
@@ -54,8 +60,9 @@ export class BoardWriter {
   ) {
     this.windowMs = opts.renameWindowMs ?? 1000;
     this.now = opts.now ?? Date.now;
+    this.zone = opts.side ?? 'product';
     for (const item of itemsMap(doc).values()) {
-      if (item.kind === 'file' && item.owner === opts.owner) this.index.set(item.path, item.id);
+      if (isFileItem(item) && item.owner === opts.owner) this.index.set(item.path, item.id);
     }
   }
 
@@ -73,7 +80,7 @@ export class BoardWriter {
 
     this.doc.transact(() => {
       let known = this.index.get(path);
-      let prev = known ? items.get(known) : undefined;
+      let prev = known ? fileItemOf(this.doc, known) : undefined;
       // A file moved onto the path of a deleted file is that moved file's block, not the old one:
       // the old block leaves the board, and the moved block takes its path and incoming links.
       if (known && prev?.gone && this.findRenameSource(hash, path)) {
@@ -99,7 +106,7 @@ export class BoardWriter {
         this.index.delete(renamedFrom.path);
         this.index.set(path, renamedFrom.id);
         const frame = this.ensureFrame(path);
-        if (frame !== renamedFrom.frame) layoutMap(this.doc).set(renamedFrom.id, nextItemSpot(this.doc, frame, renamedFrom.id));
+        if (frame !== renamedFrom.frame) layoutMap(this.doc).set(renamedFrom.id, nextItemSpot(this.doc, frame, { zone: this.zone, exceptId: renamedFrom.id }));
         items.set(renamedFrom.id, { ...renamedFrom, path, frame, type, text, hash, gone: false, updatedAt: this.now() });
         resolveEdgesTo(this.doc, path, renamedFrom.id);
         this.syncEdges(renamedFrom.id, path, text);
@@ -109,7 +116,7 @@ export class BoardWriter {
 
       const id = newItemId();
       const frame = this.ensureFrame(path);
-      layoutMap(this.doc).set(id, nextItemSpot(this.doc, frame));
+      layoutMap(this.doc).set(id, nextItemSpot(this.doc, frame, { zone: this.zone }));
       items.set(id, { id, kind: 'file', path, frame, type, text, hash, owner: this.opts.owner, gone: false, updatedAt: this.now() });
       this.index.set(path, id);
       resolveEdgesTo(this.doc, path, id);
@@ -123,7 +130,7 @@ export class BoardWriter {
   unlink(path: string): void {
     const id = this.index.get(path);
     if (!id || this.pendingGone.has(id)) return;
-    const item = itemsMap(this.doc).get(id);
+    const item = fileItemOf(this.doc, id);
     if (!item || item.gone) return;
     this.pendingGone.set(
       id,
@@ -164,7 +171,7 @@ export class BoardWriter {
 
   private markGone(id: string): boolean {
     const items = itemsMap(this.doc);
-    const item = items.get(id);
+    const item = fileItemOf(this.doc, id);
     if (!item || item.gone) return false;
     items.set(id, { ...item, gone: true, updatedAt: this.now() });
     return true;
@@ -179,10 +186,9 @@ export class BoardWriter {
   }
 
   private findRenameSource(hash: string, newPath: string): FileItem | undefined {
-    const items = itemsMap(this.doc);
     for (const [path, id] of this.index) {
       if (path === newPath) continue;
-      const item = items.get(id);
+      const item = fileItemOf(this.doc, id);
       if (!item || item.hash !== hash) continue;
       if (this.pendingGone.has(id)) return item;
       if (!item.gone && !this.opts.exists(path)) return item;

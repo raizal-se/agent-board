@@ -1,9 +1,21 @@
-import { existsSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileEdgesOf, layoutMap } from '@agent-board/model';
+import {
+  addComment,
+  addSticky,
+  agree,
+  agreementsMap,
+  boardMap,
+  changedAfterAgreement,
+  fileEdgesOf,
+  fileItemOf,
+  itemsMap,
+  layoutMap,
+  type BoardExport,
+} from '@agent-board/model';
 import { afterEach, describe, expect, it } from 'vitest';
 import { startBoard, type RunningBoard } from './board';
-import { DOC_FILE, loadDoc, STATE_DIR } from './store';
+import { DOC_FILE, EXPORT_FILE, loadDoc, STATE_DIR } from './store';
 import { connectTab, fakeWebDir, itemAt, tempDir, until, write } from './test-helpers';
 
 const identity = { name: 'dewi', side: 'product' as const };
@@ -124,5 +136,75 @@ describe('agent-board watch (real folder, real WebSocket)', () => {
     expect(layoutMap(t2.doc).get(a.id)).toMatchObject({ x: 777, y: 555 });
     expect(itemAt(t2.doc, 'b.md')?.gone).toBe(true);
     expect(existsSync(join(folder, STATE_DIR, DOC_FILE))).toBe(true);
+  });
+
+  it('a save on an agreed block marks it changed and keeps the snapshot', async () => {
+    const folder = tempDir('ab-folder-');
+    write(folder, 'checkout/api.md', 'POST /intents\n');
+    const b = await board(folder);
+    const t = await tab(b.server.port);
+    const api = await until(() => itemAt(t.doc, 'checkout/api.md'), 3000, 'api.md');
+    expect(boardMap<string>(t.doc, 'meta').get('owner')).toBe('dewi');
+
+    agree(t.doc, { text: 'Intent first', covers: [api.id], by: identity });
+    await until(() => agreementsMap(b.doc).get(api.id), 3000, 'agreement at the CLI');
+
+    write(folder, 'checkout/api.md', 'POST /intents\nGET /intents/:id\n');
+    await until(() => fileItemOf(t.doc, api.id)?.text.includes('GET'), 3000, 'save in the tab');
+    const a = agreementsMap(t.doc).get(api.id)!;
+    expect(a.snapshot.text).toBe('POST /intents\n');
+    expect(changedAfterAgreement(fileItemOf(t.doc, api.id)!, a)).toBe(true);
+  });
+
+  it('writes the JSON export after a change: stickies, comments, decisions, no position', async () => {
+    const folder = tempDir('ab-folder-');
+    write(folder, 'checkout/api.md', 'v1');
+    const b = await board(folder);
+    const t = await tab(b.server.port);
+    const api = await until(() => itemAt(t.doc, 'checkout/api.md'), 3000, 'api.md');
+    const file = join(folder, STATE_DIR, EXPORT_FILE);
+    const read = (): BoardExport | undefined => {
+      try {
+        return JSON.parse(readFileSync(file, 'utf8')) as BoardExport;
+      } catch {
+        return undefined;
+      }
+    };
+    await until(() => read()?.items.some((i) => i.id === api.id), 3000, 'export with the file');
+
+    const sticky = addSticky(t.doc, { by: identity, frame: api.frame, x: 10, y: 10, text: 'idempotency key?' });
+    addComment(t.doc, { target: api.id, by: identity, text: 'timeout?' });
+    agree(t.doc, { text: 'Intent first', covers: [api.id], by: identity });
+    const out = await until(() => {
+      const o = read();
+      return o && o.items.some((i) => i.id === sticky) && o.decisions.length === 1 && o.comments.length === 1 ? o : undefined;
+    }, 3000, 'export with the board changes');
+    expect(out.items.find((i) => i.id === api.id)).toMatchObject({ state: 'agreed', content: 'v1', snapshot: { content: 'v1' }, changed_after_agreement: false });
+    expect(JSON.stringify(out)).not.toMatch(/"(x|y)":/);
+    // No temp file left behind, and the watcher does not make a block of the export.
+    expect(readdirSync(join(folder, STATE_DIR)).filter((f) => f.endsWith('.tmp'))).toEqual([]);
+    expect(itemAt(t.doc, `${STATE_DIR}/${EXPORT_FILE}`)).toBeUndefined();
+  });
+
+  it('stickies, comments and agreements survive a restart', async () => {
+    const folder = tempDir('ab-folder-');
+    write(folder, 'a.md', 'A');
+    const b1 = await board(folder);
+    const t1 = await tab(b1.server.port);
+    const a = await until(() => itemAt(t1.doc, 'a.md'), 3000, 'a.md');
+    const sticky = addSticky(t1.doc, { by: identity, frame: null, x: -400, y: 0, text: 'loose note' });
+    addComment(t1.doc, { target: sticky, by: identity, text: 'on the note' });
+    agree(t1.doc, { text: 'ok', covers: [a.id], by: identity });
+    await until(() => agreementsMap(loadDoc(join(folder, STATE_DIR, DOC_FILE))).get(a.id), 3000, 'saved to disk');
+    await t1.close();
+    await b1.stop();
+    cleanup.length = 0;
+
+    const b2 = await board(folder);
+    const t2 = await tab(b2.server.port);
+    await until(() => itemsMap(t2.doc).get(sticky), 3000, 'sticky after restart');
+    expect(itemsMap(t2.doc).get(sticky)).toMatchObject({ text: 'loose note', author: 'dewi' });
+    expect([...itemsMap(t2.doc).values()].filter((i) => i.kind === 'comment')).toHaveLength(1);
+    expect(agreementsMap(t2.doc).get(a.id)?.snapshot.text).toBe('A');
   });
 });

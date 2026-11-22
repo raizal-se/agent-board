@@ -1,11 +1,13 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { createBoardDoc } from '@agent-board/model';
+import { createBoardDoc, exportBoard } from '@agent-board/model';
 import * as Y from 'yjs';
 
 /** Where the CLI keeps the board for a watched folder. The watcher ignores this folder. */
 export const STATE_DIR = '.agent-board';
 export const DOC_FILE = 'board.ydoc';
+/** The board as JSON for agents (docs/agents.md). Written by the CLI, read by agents. */
+export const EXPORT_FILE = 'board.json';
 
 /** Load the saved doc, or a new empty board. */
 export function loadDoc(file: string): Y.Doc {
@@ -20,11 +22,20 @@ export function loadDoc(file: string): Y.Doc {
   return doc;
 }
 
-export function saveDoc(doc: Y.Doc, file: string): void {
+/** Write to a temp file, then rename: a crash or a reader never sees half a file. */
+function writeAtomic(file: string, data: string | Uint8Array): void {
   mkdirSync(dirname(file), { recursive: true });
-  const tmp = `${file}.tmp`;
-  writeFileSync(tmp, Y.encodeStateAsUpdate(doc));
-  renameSync(tmp, file); // atomic: a crash never leaves half a file
+  const tmp = `${file}.${process.pid}.tmp`;
+  writeFileSync(tmp, data);
+  renameSync(tmp, file);
+}
+
+export function saveDoc(doc: Y.Doc, file: string): void {
+  writeAtomic(file, Y.encodeStateAsUpdate(doc));
+}
+
+export function writeExport(doc: Y.Doc, file: string): void {
+  writeAtomic(file, `${JSON.stringify(exportBoard(doc), null, 2)}\n`);
 }
 
 export interface AutoSave {
@@ -35,18 +46,40 @@ export interface AutoSave {
 
 /** Save the doc to disk shortly after each change. The CLI is the source of truth. */
 export function autoSave(doc: Y.Doc, file: string, delayMs = 150): AutoSave {
+  return afterChanges(doc, delayMs, () => saveDoc(doc, file));
+}
+
+/**
+ * Write the JSON export about 300 ms after the last of a burst of changes (a long burst still
+ * writes at least once a second), and once now, so it is there from the start.
+ */
+export function autoExport(doc: Y.Doc, file: string, delayMs = 300): AutoSave {
+  writeExport(doc, file);
+  return afterChanges(doc, delayMs, () => writeExport(doc, file), 1000);
+}
+
+/** Run `write` `delayMs` after the last change; with `maxWaitMs`, no later than that after the first. */
+function afterChanges(doc: Y.Doc, delayMs: number, write: () => void, maxWaitMs?: number): AutoSave {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let first = 0;
   let dirty = false;
   const flush = () => {
     clearTimeout(timer);
     timer = undefined;
     if (!dirty) return;
     dirty = false;
-    saveDoc(doc, file);
+    write();
   };
   const onUpdate = () => {
+    const now = Date.now();
+    if (!dirty) first = now;
     dirty = true;
-    if (!timer) timer = setTimeout(flush, delayMs);
+    if (maxWaitMs === undefined) {
+      if (!timer) timer = setTimeout(flush, delayMs);
+      return;
+    }
+    clearTimeout(timer);
+    timer = setTimeout(flush, Math.max(0, Math.min(delayMs, first + maxWaitMs - now)));
   };
   doc.on('update', onUpdate);
   return {

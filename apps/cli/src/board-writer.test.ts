@@ -1,4 +1,4 @@
-import { edgesMap, fileEdgesOf, framesMap, itemsMap, layoutMap, createBoardDoc } from '@agent-board/model';
+import { edgesMap, fileEdgesOf, fileItems, framesMap, itemsMap, layoutMap, createBoardDoc } from '@agent-board/model';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 import { BoardWriter } from './board-writer';
@@ -6,7 +6,7 @@ import { BoardWriter } from './board-writer';
 function setup(onDisk: Set<string> = new Set()) {
   const doc = createBoardDoc();
   const writer = new BoardWriter(doc, { owner: 'dewi', rootName: 'payments', exists: (p) => onDisk.has(p) });
-  const item = (path: string) => [...itemsMap(doc).values()].find((i) => i.path === path);
+  const item = (path: string) => fileItems(doc).find((i) => i.path === path);
   return { doc, writer, item, onDisk };
 }
 

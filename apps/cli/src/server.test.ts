@@ -1,5 +1,5 @@
 import { request } from 'node:http';
-import { createBoardDoc, ensureBoardId, itemsMap, layoutMap } from '@agent-board/model';
+import { createBoardDoc, ensureBoardId, fileItemOf, itemsMap, layoutMap } from '@agent-board/model';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeMessage } from '@agent-board/sync';
 import { WebSocket } from 'ws';
@@ -87,10 +87,10 @@ describe('board server', () => {
     const t2 = connectTab(s.port);
     cleanup.push(() => t1.close(), () => t2.close());
 
-    await until(() => itemsMap(t1.doc).get('f_1')?.text === 'v1', 3000, 'initial state');
-    const item = itemsMap(doc).get('f_1')!;
+    await until(() => fileItemOf(t1.doc, 'f_1')?.text === 'v1', 3000, 'initial state');
+    const item = fileItemOf(doc, 'f_1')!;
     itemsMap(doc).set('f_1', { ...item, text: 'v2' });
-    await until(() => itemsMap(t1.doc).get('f_1')?.text === 'v2', 3000, 'live change');
+    await until(() => fileItemOf(t1.doc, 'f_1')?.text === 'v2', 3000, 'live change');
 
     layoutMap(t1.doc).set('f_1', { x: 10, y: 20 });
     await until(() => layoutMap(doc).get('f_1')?.x === 10, 3000, 'tab to CLI');
@@ -152,6 +152,6 @@ describe('board server', () => {
     const t = connectTab(s.port);
     cleanup.push(() => t.close());
     itemsMap(doc).set('f_1', { id: 'f_1', kind: 'file', path: 'a.md', frame: 'frame:x', type: 'markdown', text: 'ok', hash: '', owner: 'me', gone: false, updatedAt: 0 });
-    await until(() => itemsMap(t.doc).get('f_1')?.text === 'ok', 3000, 'still syncing');
+    await until(() => fileItemOf(t.doc, 'f_1')?.text === 'ok', 3000, 'still syncing');
   });
 });

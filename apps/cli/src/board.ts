@@ -2,10 +2,11 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { boardMap, ensureBoardId, type Device } from '@agent-board/model';
+import type * as Y from 'yjs';
 import { BoardWriter } from './board-writer';
 import type { Identity } from './config';
 import { startServer, type BoardServer } from './server';
-import { autoSave, DOC_FILE, loadDoc, STATE_DIR } from './store';
+import { autoExport, autoSave, DOC_FILE, EXPORT_FILE, loadDoc, STATE_DIR } from './store';
 import { fileExists, watchFolder } from './watcher';
 
 /** The built web app, next to this package in the monorepo. */
@@ -23,6 +24,8 @@ export interface BoardOptions {
 
 export interface RunningBoard {
   url: string;
+  /** The board, as the CLI holds it. */
+  doc: Y.Doc;
   server: BoardServer;
   writer: BoardWriter;
   /** Resolves after the first scan of the folder. */
@@ -48,6 +51,8 @@ export async function startBoard(opts: BoardOptions): Promise<RunningBoard> {
   doc.transact(() => {
     const meta = boardMap<string>(doc, 'meta');
     if (!meta.get('name')) meta.set('name', basename(folder));
+    // The person at this board: the page uses it as the author of what it makes.
+    if (meta.get('owner') !== name) meta.set('owner', name);
     ensureBoardId(doc);
     const devices = boardMap<Device>(doc, 'devices');
     const prev = devices.get(name);
@@ -56,10 +61,12 @@ export async function startBoard(opts: BoardOptions): Promise<RunningBoard> {
 
   const writer = new BoardWriter(doc, {
     owner: name,
+    side,
     rootName: basename(folder),
     exists: fileExists(folder),
     renameWindowMs: opts.renameWindowMs,
   });
+  const exporter = autoExport(doc, join(folder, STATE_DIR, EXPORT_FILE));
   const watcher = watchFolder(writer, folder, { poll: opts.poll, log });
   let server: BoardServer;
   try {
@@ -67,12 +74,14 @@ export async function startBoard(opts: BoardOptions): Promise<RunningBoard> {
   } catch (err) {
     await watcher.close();
     writer.dispose();
+    exporter.close();
     saver.close();
     throw err;
   }
 
   return {
     url: server.url,
+    doc,
     server,
     writer,
     ready: watcher.ready,
@@ -82,6 +91,7 @@ export async function startBoard(opts: BoardOptions): Promise<RunningBoard> {
       // the moved file and keeps its block. The first scan then marks the rest gone.
       writer.dispose();
       await server.close();
+      exporter.close();
       saver.close();
       doc.destroy();
     },
