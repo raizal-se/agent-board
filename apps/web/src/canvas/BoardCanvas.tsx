@@ -21,6 +21,15 @@ function canvasMeasure(): Measure {
   };
 }
 
+/** Another person's pointer on the canvas. */
+export interface CursorOf {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  color: string;
+}
+
 /** What is selected on the canvas: board items in the order they were picked, or one drawn link. */
 export interface Selection {
   items: string[];
@@ -115,14 +124,32 @@ export const BoardCanvas = memo(function BoardCanvas({
   onSelection,
   onViewport,
   onReady,
+  cursors,
+  onPointer,
 }: {
   doc: Y.Doc;
   onSelection: (s: Selection) => void;
   onViewport?: (v: Viewport) => void;
   /** Called once the first scene from the doc is on the canvas. */
   onReady?: () => void;
+  /** Other people's pointers on a shared board, with their names. */
+  cursors?: readonly CursorOf[];
+  /** This person's pointer moved (scene coordinates). */
+  onPointer?: (p: { x: number; y: number }) => void;
 }) {
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
+
+  // Other people's pointers: Excalidraw's collaborators.
+  useEffect(() => {
+    if (!api || !cursors) return;
+    const collaborators = new Map(
+      cursors.map((c) => [
+        c.id,
+        { username: c.name, pointer: { x: c.x, y: c.y, tool: 'pointer' as const }, color: { background: c.color, stroke: c.color }, id: c.id },
+      ]),
+    );
+    api.updateScene({ collaborators: collaborators as unknown as AppState['collaborators'], captureUpdate: CaptureUpdateAction.NEVER });
+  }, [api, cursors]);
   const picked = useRef<string[]>([]);
   const lastKey = useRef('');
   const fitted = useRef(false);
@@ -237,6 +264,7 @@ export const BoardCanvas = memo(function BoardCanvas({
       validateEmbeddable={validateEmbeddable}
       renderEmbeddable={renderEmbeddable}
       onLinkOpen={(_el, e) => e.preventDefault()}
+      onPointerUpdate={onPointer ? (p) => onPointer({ x: p.pointer.x, y: p.pointer.y }) : undefined}
       aiEnabled={false}
     >
       <MainMenu>

@@ -20,6 +20,8 @@ export interface BoardActions {
   reject(itemId: string): void;
   /** A person moves a file block to the Product or Engineering area. */
   switchArea(itemId: string, side: Side): void;
+  /** Can this person change the card (its area)? On a shared board only its owner can. Default: yes. */
+  canChange?(item: FileItem): boolean;
   /** A card measured its content: its height follows it (a layout id: a block's or a snapshot card's). */
   fitHeight(layoutId: string, h: number): void;
 }

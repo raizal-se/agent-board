@@ -1,5 +1,6 @@
-import { fileName, type Side } from '@agent-board/model';
-import type { CSSProperties, ReactNode, RefObject } from 'react';
+import { acceptsMap, fileName, waitingAccepts, waitingText, type Side } from '@agent-board/model';
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode, type RefObject } from 'react';
+import type * as Y from 'yjs';
 import { useBoardActions } from '../board/actions';
 import type { BlockData } from '../board/derive';
 import { useCardFit } from './cardFit';
@@ -10,6 +11,34 @@ const SIDES: { side: Side; label: string }[] = [
   { side: 'product', label: 'Product' },
   { side: 'engineering', label: 'Engineering' },
 ];
+
+/** "1 of 2 · waiting for engineering" while one side accepted this version. */
+function useWaiting(doc: Y.Doc, itemId: string, hash: string): string | null {
+  const text = useSyncExternalStore(
+    (cb) => {
+      const m = acceptsMap(doc);
+      m.observe(cb);
+      return () => m.unobserve(cb);
+    },
+    () => waitingText(waitingAccepts(doc, itemId)),
+  );
+  void hash; // a new version re-renders the card
+  return text;
+}
+
+/** A dot on a card for a few seconds after its file changed. */
+function useEditing(hash: string): boolean {
+  const first = useRef(hash);
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    if (hash === first.current) return;
+    first.current = hash;
+    setOn(true);
+    const t = setTimeout(() => setOn(false), 4000);
+    return () => clearTimeout(t);
+  }, [hash]);
+  return on;
+}
 
 /** Why a block is in its area, for the switch's tooltip. */
 function areaWhy(data: BlockData): string {
@@ -70,8 +99,11 @@ export function CardBody({
  * agent work: it carries the agent mark and the owner's colour.
  */
 export function BlockChrome({ data, children }: { data: BlockData; children: ReactNode }) {
-  const { open, compare, agree, reject, switchArea } = useBoardActions();
+  const { doc, open, compare, agree, reject, switchArea, canChange } = useBoardActions();
   const { item, missing, agreement, changed, area, pin, mark, review } = data;
+  const waiting = useWaiting(doc, item.id, item.hash);
+  const editing = useEditing(item.hash);
+  const movable = canChange ? canChange(item) : true;
   const { card, body, content, overflow } = useCardFit(item.id);
   const state = agreement ? 'agreed' : 'draft';
   const agreedNow = !!agreement && !changed;
@@ -97,6 +129,7 @@ export function BlockChrome({ data, children }: { data: BlockData; children: Rea
       <div className="block-title" title={item.path}>
         <span className="block-kind">{item.type === 'html' ? 'HTML' : 'MD'}</span>
         <span className="block-name">{fileName(item.path)}</span>
+        {editing && <span className="editing-dot" data-testid="editing-dot" title="This file just changed" aria-label="just changed" />}
         <span className="agent-mark" data-testid="agent-mark" title={`Written by ${item.owner}'s agent`}>
           <span className="agent-dot" aria-hidden="true" />
           {item.owner}'s agent
@@ -106,13 +139,20 @@ export function BlockChrome({ data, children }: { data: BlockData; children: Rea
         </button>
       </div>
       <div className="block-actions">
-        <div className="area-switch" role="group" aria-label={`area of ${item.path}`} title={areaWhy(data)} data-testid="area-switch">
+        <div
+          className="area-switch"
+          role="group"
+          aria-label={`area of ${item.path}`}
+          title={movable ? areaWhy(data) : `${areaWhy(data)}. Only ${item.owner} can move it.`}
+          data-testid="area-switch"
+        >
           {SIDES.map(({ side, label }) => (
             <button
               key={side}
               type="button"
               className={`area-option area-option-${side}`}
               aria-pressed={area === side}
+              disabled={!movable}
               onClick={stop(() => area !== side && switchArea(item.id, side))}
             >
               {label}
@@ -135,8 +175,13 @@ export function BlockChrome({ data, children }: { data: BlockData; children: Rea
         </button>
         <CommentPin target={item.id} name={item.path} pin={pin} />
       </div>
-      {(agreement || mark) && (
+      {(agreement || mark || waiting) && (
         <div className="block-meta">
+          {waiting && (
+            <span className="waiting-mark" data-testid="waiting">
+              {waiting}
+            </span>
+          )}
           {agreement && (
             <span className="agreed-badge" data-testid="agreed-badge" title={`Agreed by ${agreement.accepts.map((a) => a.name).join(', ')}`}>
               agreed

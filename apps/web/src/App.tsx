@@ -25,8 +25,11 @@ import { nameOf, views } from './board/derive';
 import { noteSpot } from './board/place';
 import { useBoardState } from './board/useBoard';
 import { useNarrow } from './canvas/bars';
-import { BoardCanvas, type Selection, type Viewport } from './canvas/BoardCanvas';
+import { BoardCanvas, type CursorOf, type Selection, type Viewport } from './canvas/BoardCanvas';
 import { ViewsContext } from './canvas/embeds';
+import { cursorOf } from './peer/session';
+import { SharedBar } from './peer/SharedBar';
+import { useSession } from './peer/useSession';
 
 const STATUS_TEXT: Record<ConnectionStatus, string> = {
   connecting: 'connecting…',
@@ -34,6 +37,16 @@ const STATUS_TEXT: Record<ConnectionStatus, string> = {
   offline: 'CLI not reachable, retrying…',
   'other-board': 'the CLI serves another board now, reloading…',
 };
+
+/** A browser peer has no CLI: offline means it works on its own copy. */
+const PEER_STATUS_TEXT: Record<ConnectionStatus, string> = {
+  connecting: 'connecting…',
+  online: 'live',
+  offline: 'on your own copy',
+  'other-board': 'another board',
+};
+
+const SIDE_COLOR = { product: '#c2410c', engineering: '#1d4ed8' } as const;
 
 function useStatus(conn: BoardConnection): ConnectionStatus {
   return useSyncExternalStore(conn.onStatus, conn.status);
@@ -58,10 +71,25 @@ export function App({ conn }: { conn: BoardConnection }) {
   const [sel, setSel] = useState<Selection>(NONE);
   const [viewport, setViewport] = useState<Viewport | null>(null);
 
+  const session = conn.session;
+  const view = useSession(session);
+  const shared = !!view.peer;
+
   const me: Person = useMemo(() => {
+    // On a shared board each page has its own person: the CLI's or the browser's.
+    if (view.me) return view.me;
     const owner = state.owner || 'me';
     return { name: owner, side: state.devices.get(owner)?.side ?? 'product' };
-  }, [state.owner, state.devices]);
+  }, [view.me, state.owner, state.devices]);
+
+  const cursors = useMemo<CursorOf[] | undefined>(() => {
+    if (!view.peer) return undefined;
+    return view.peer.online.flatMap((o) => {
+      const c = cursorOf(o.cursor);
+      return c ? [{ id: o.id, name: o.name, ...c, color: SIDE_COLOR[o.side] ?? '#555' }] : [];
+    });
+  }, [view.peer]);
+  const onPointer = useMemo(() => (session ? (p: { x: number; y: number }) => session.setCursor(p) : undefined), [session]);
 
   const actions = useMemo<BoardActions>(
     () => ({
@@ -74,13 +102,15 @@ export function App({ conn }: { conn: BoardConnection }) {
       agree: (itemId) => agreeItem(doc, itemId, { by: me }),
       reject: (itemId) => setAsk({ kind: 'reject', item: itemId }),
       switchArea: (itemId, side) => switchArea(doc, itemId, side, { by: me }),
+      // On a shared board a file card is its owner's: only the owner's devices can change it.
+      canChange: shared ? (item) => item.owner === me.name : undefined,
       fitHeight: (layoutId, h) => {
         const layout = layoutMap(doc);
         const l = layout.get(layoutId);
         if (l && l.h !== h) layout.set(layoutId, { ...l, w: l.w ?? BLOCK_W, h });
       },
     }),
-    [doc, me, viewport],
+    [doc, me, viewport, shared],
   );
 
   /** A new note in the middle of the view (inside the frame there, clear of its blocks), selected. */
@@ -172,12 +202,12 @@ export function App({ conn }: { conn: BoardConnection }) {
     <BoardActionsContext.Provider value={actions}>
       <ViewsContext.Provider value={v}>
         <div className="board-root">
-          <BoardCanvas doc={doc} onSelection={setSel} onViewport={setViewport} />
+          <BoardCanvas doc={doc} onSelection={setSel} onViewport={setViewport} cursors={cursors} onPointer={onPointer} />
           <div className="board-overlay board-overlay-top">
             <div className="board-header">
               <strong>{state.name || 'agent-board'}</strong>
               <span className={`status status-${status}`} data-testid="status" data-status={status}>
-                {STATUS_TEXT[status]}
+                {(view.mode === 'peer' ? PEER_STATUS_TEXT : STATUS_TEXT)[status]}
               </span>
               <button type="button" className="btn" onClick={addNoteInView} title="Add a note in the middle of the view">
                 + note
@@ -185,13 +215,16 @@ export function App({ conn }: { conn: BoardConnection }) {
               <button type="button" className="btn" onClick={() => viewport?.fitAll()} title="Show the whole board">
                 Fit all
               </button>
+              {session && <SharedBar view={view} session={session} />}
             </div>
             {!narrow && selectionBar}
           </div>
           <div className="board-overlay board-overlay-bottom">
             <HiddenList items={v.hidden} onOpen={actions.open} />
             {status === 'online' && state.items.length === 0 && state.stickies.length === 0 && (
-              <div className="empty">No files yet. Add .md or .html files to the watched folder, or add a note.</div>
+              <div className="empty">
+                {view.mode === 'peer' ? 'No files yet. Add a note, or connect your agent.' : 'No files yet. Add .md or .html files to the watched folder, or add a note.'}
+              </div>
             )}
             {narrow && selectionBar}
           </div>
