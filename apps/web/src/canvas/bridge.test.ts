@@ -132,6 +132,27 @@ describe('doc to elements', () => {
   });
 });
 
+describe('a scene replaced under the bridge', () => {
+  it('draws the doc again when the canvas loses its elements (Excalidraw loading initialData after the first push)', () => {
+    const drawn = canvas.scene.filter((e) => !e.isDeleted).map((e) => e.id).sort();
+    expect(drawn.length).toBeGreaterThan(0);
+    // Excalidraw's initializeScene: the whole scene replaced by an empty one, then its onChange.
+    canvas.scene = [];
+    sync.changed();
+    vi.runAllTimers();
+    expect(canvas.scene.filter((e) => !e.isDeleted).map((e) => e.id).sort()).toEqual(drawn);
+    // Nothing of the restore went back to the doc as a change.
+    expect(layoutOf('x')).toEqual({ x: 32, y: 76 });
+  });
+
+  it('a user delete is not a lost scene: the element stays, marked deleted', () => {
+    canvas.edit('fe:x->a/y.md#~label', { isDeleted: true });
+    expect(sync.lost()).toBe(false);
+    canvas.scene = canvas.scene.filter((e) => e.id !== 'x');
+    expect(sync.lost()).toBe(true);
+  });
+});
+
 describe('elements to doc', () => {
   it('writes a moved block relative to its frame, and a moved frame', () => {
     canvas.edit('x', { x: 100, y: 300 });

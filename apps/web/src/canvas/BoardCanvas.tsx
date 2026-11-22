@@ -108,7 +108,10 @@ export const BoardCanvas = memo(function BoardCanvas({
       api.onPointerUp(up),
       api.onChange((elements) => {
         sync.changed();
-        if (!fitted.current && elements.some((e) => !e.isDeleted)) {
+        // Fit when the board first shows, and again if the scene was replaced (scroll reset with it).
+        const live = elements.some((e) => !e.isDeleted);
+        if (!live) fitted.current = false;
+        else if (!fitted.current) {
           fitted.current = true;
           api.scrollToContent(undefined, { fitToViewport: true, viewportZoomFactor: 0.9 });
           onReady?.();

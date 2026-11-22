@@ -30,6 +30,8 @@ export class BoardSync {
   private pointerDown = false;
   private readonly seen = new Map<string, number>();
   private readonly known = new Set<string>();
+  /** The live elements the last merge left on the canvas. */
+  private pushed = new Set<string>();
   private timer: ReturnType<typeof setTimeout> | null = null;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
@@ -72,9 +74,16 @@ export class BoardSync {
     if (!down) this.schedule();
   }
 
-  /** The canvas changed (Excalidraw's onChange: keys, menus, edits): write it to the doc when settled. */
+  /**
+   * The canvas changed (Excalidraw's onChange: keys, menus, edits): write it to the doc when settled.
+   * If the scene was replaced under us, merge again now. Excalidraw does this once at start-up: it
+   * hands out its API in its constructor, then, after mount, loads `initialData` and replaces the
+   * whole scene with it (App.initializeScene), wiping what we pushed in between.
+   */
   changed(): void {
-    if (this.stopped || this.flushTimer) return;
+    if (this.stopped) return;
+    if (this.lost()) this.schedule();
+    if (this.flushTimer) return;
     this.flushTimer = setTimeout(() => {
       this.flushTimer = null;
       this.flush();
@@ -85,6 +94,14 @@ export class BoardSync {
   flush(): number {
     if (this.stopped || inGesture(this.api.getAppState(), this.pointerDown)) return 0;
     return writeScene(this.doc, this.api.getSceneElementsIncludingDeleted(), this.seen, personOf(this.doc));
+  }
+
+  /** Whether elements we put on the canvas are gone from it entirely (a user delete keeps them, as deleted). */
+  lost(): boolean {
+    if (this.pushed.size === 0) return false;
+    const now = new Set(this.api.getSceneElementsIncludingDeleted().map((e) => e.id));
+    for (const id of this.pushed) if (!now.has(id)) return true;
+    return false;
   }
 
   /** Write settled changes, then lay the doc over the canvas. */
@@ -105,6 +122,11 @@ export class BoardSync {
     this.pushes++;
     // What we pushed is the doc's state: nothing of it goes back. Held elements are the user's,
     // not yet written: they go to the doc when the gesture ends.
-    for (const e of this.api.getSceneElementsIncludingDeleted()) if (!held.has(e.id)) this.seen.set(e.id, e.version);
+    const pushed = new Set<string>();
+    for (const e of this.api.getSceneElementsIncludingDeleted()) {
+      if (!held.has(e.id)) this.seen.set(e.id, e.version);
+      if (!e.isDeleted) pushed.add(e.id);
+    }
+    this.pushed = pushed;
   }
 }
