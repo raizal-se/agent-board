@@ -28,7 +28,8 @@ export const FRAME_GAP = 120;
 export const ZONES = ['product', 'engineering', 'agreed', 'milestone'] as const satisfies readonly Zone[];
 export type FrameZone = (typeof ZONES)[number];
 
-export const FRAME_MIN_W = FRAME_PAD * 2 + ZONES.length * BLOCK_W + (ZONES.length - 1) * GRID_GAP;
+/** The width an empty zone takes at the right of a frame: a thin strip with its name. */
+export const ZONE_STRIP = 44;
 export const FRAME_MIN_H = ZONE_TOP + BLOCK_H + FRAME_PAD;
 
 export function layoutMap(doc: Y.Doc): Y.Map<Layout> {
@@ -47,10 +48,54 @@ export interface Rect {
   h: number;
 }
 
-/** The zone areas of a frame of height `h`, relative to the frame. */
-export function zoneRects(h: number): Record<FrameZone, Rect> {
-  const out = {} as Record<FrameZone, Rect>;
-  for (const z of ZONES) out[z] = { x: zoneX(z) - 12, y: FRAME_HEADER, w: BLOCK_W + 24, h: Math.max(0, h - FRAME_HEADER - FRAME_PAD + 12) };
+/** Something in a frame, relative to it; size defaults to a block's. */
+export interface Cell {
+  x: number;
+  y: number;
+  w?: number;
+  h?: number;
+}
+
+/**
+ * How far the zone columns reach in a frame: `last` is the rightmost column with something in it
+ * (by the left edge of each item, at least the first column), `right` the right edge of the content.
+ * Columns after `last` are empty: they show as thin strips, so the blocks get the room.
+ */
+function zoneSpan(cells: Iterable<Cell>): { last: number; right: number } {
+  let last = 0;
+  let right = zoneX(ZONES[0]) + BLOCK_W;
+  for (const c of cells) {
+    for (let i = ZONES.length - 1; i > last; i--) {
+      if (c.x >= zoneX(ZONES[i]!) - GRID_GAP / 2) {
+        last = i;
+        break;
+      }
+    }
+    right = Math.max(right, c.x + (c.w ?? BLOCK_W));
+  }
+  right = Math.max(right, zoneX(ZONES[last]!) + BLOCK_W);
+  return { last, right };
+}
+
+/** A zone's area in a frame, relative to it. `strip`: an empty zone, drawn thin at the right. */
+export interface ZoneRect extends Rect {
+  strip: boolean;
+}
+
+/**
+ * The zone areas of a frame of height `h` holding `cells`. Columns up to the last one in use are
+ * full width; the empty ones after it are strips at the right edge.
+ */
+export function zoneRects(h: number, cells: Iterable<Cell> = []): Record<FrameZone, ZoneRect> {
+  const { last, right } = zoneSpan(cells);
+  const height = Math.max(0, h - FRAME_HEADER - FRAME_PAD + 12);
+  const out = {} as Record<FrameZone, ZoneRect>;
+  ZONES.forEach((z, i) => {
+    out[z] =
+      i <= last
+        ? { x: zoneX(z) - 12, y: FRAME_HEADER, w: BLOCK_W + 24, h: height, strip: false }
+        : { x: right + 20 + (i - last - 1) * ZONE_STRIP, y: FRAME_HEADER, w: ZONE_STRIP - 8, h: height, strip: true };
+  });
   return out;
 }
 
@@ -102,18 +147,20 @@ export function nextItemSpot(
 }
 
 /**
- * A frame's size: room for its four zones and for every item in it (hidden ones keep their
- * place). The canvas and frame placement both use this, so they agree.
+ * A frame's size: room for every item in it (hidden ones keep their place), the zone columns they
+ * reach, and a strip for each empty zone after those. The canvas and frame placement both use
+ * this, so they agree.
  */
-export function frameSize(items: Iterable<{ x: number; y: number; w?: number; h?: number }>): { w: number; h: number } {
-  let w = FRAME_MIN_W;
+export function frameSize(items: Iterable<Cell>): { w: number; h: number } {
+  const cells = [...items];
+  const { last, right } = zoneSpan(cells);
   let h = FRAME_MIN_H;
-  for (const p of items) {
-    w = Math.max(w, p.x + (p.w ?? BLOCK_W) + FRAME_PAD);
-    h = Math.max(h, p.y + (p.h ?? BLOCK_H) + FRAME_PAD);
-  }
-  return { w, h };
+  for (const p of cells) h = Math.max(h, p.y + (p.h ?? BLOCK_H) + FRAME_PAD);
+  return { w: right + FRAME_PAD + (ZONES.length - 1 - last) * ZONE_STRIP, h };
 }
+
+/** The width of an empty frame: the first zone column and a strip for each of the others. */
+export const FRAME_MIN_W = frameSize([]).w;
 
 /** Frames line up left to right; a new one goes right of the rightmost. */
 export function nextFrameSpot(doc: Y.Doc): Layout {

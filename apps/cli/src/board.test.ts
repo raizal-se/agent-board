@@ -151,7 +151,7 @@ describe('agent-board watch (real folder, real WebSocket)', () => {
     expect(existsSync(join(folder, STATE_DIR, DOC_FILE))).toBe(true);
   });
 
-  it('a board saved with old narrow frames loads with no overlap, and the new places are saved', async () => {
+  it('a board saved with overlapping frames loads with no overlap, and the new places are saved', async () => {
     const folder = tempDir('ab-folder-');
     write(folder, 'checkout/flow.md', 'A');
     write(folder, 'ui/form.html', '<p>B</p>');
@@ -161,11 +161,11 @@ describe('agent-board watch (real folder, real WebSocket)', () => {
     await b1.stop();
     cleanup.length = 0;
 
-    // Rewrite the saved board as slice 1 left it: frames 1000 wide, 120 apart.
+    // Rewrite the saved board as an older, narrower layout left it: frames 300 apart, so they overlap.
     const file = join(folder, STATE_DIR, DOC_FILE);
     const old = loadDoc(file);
     const ids = [...framesMap(old).values()].sort((a, b) => a.name.localeCompare(b.name)).map((f) => f.id);
-    ids.forEach((id, i) => layoutMap(old).set(id, { x: i * 1120, y: 0 }));
+    ids.forEach((id, i) => layoutMap(old).set(id, { x: i * 300, y: 0 }));
     saveDoc(old, file);
     expect(overlapping(old)).not.toEqual([]);
 

@@ -23,6 +23,7 @@ import {
   zoneRects,
   ZONES,
   zoneX,
+  ZONE_STRIP,
 } from './layout';
 
 function item(id: string, frame: string): FileItem {
@@ -72,12 +73,33 @@ describe('placement', () => {
   });
 
   it('the zones are four columns, left to right, and fill the frame height', () => {
-    const z = zoneRects(1000);
+    const cells = [{ x: zoneX('milestone'), y: ZONE_TOP }];
+    const z = zoneRects(1000, cells);
     expect(ZONES).toEqual(['product', 'engineering', 'agreed', 'milestone']);
+    expect(Object.values(z).every((r) => !r.strip && r.w === BLOCK_W + 24)).toBe(true);
     expect(z.product.x).toBeLessThan(z.engineering.x);
     expect(z.agreed.x).toBeLessThan(z.milestone.x);
-    expect(z.milestone.x + z.milestone.w).toBeLessThanOrEqual(FRAME_MIN_W);
+    expect(z.milestone.x + z.milestone.w).toBeLessThanOrEqual(frameSize(cells).w);
     expect(z.product.y + z.product.h).toBeLessThanOrEqual(1000);
+  });
+
+  it('empty zones after the last one in use are thin strips at the right, inside the frame', () => {
+    const cells = [{ x: zoneX('product'), y: ZONE_TOP }, { x: zoneX('product'), y: ZONE_TOP + BLOCK_H + GRID_GAP }];
+    const z = zoneRects(1000, cells);
+    expect(z.product).toMatchObject({ strip: false, w: BLOCK_W + 24 });
+    for (const k of ['engineering', 'agreed', 'milestone'] as const) expect(z[k]).toMatchObject({ strip: true, w: ZONE_STRIP - 8 });
+    expect(z.engineering.x).toBeGreaterThan(z.product.x + z.product.w);
+    expect(z.milestone.x).toBeGreaterThan(z.agreed.x);
+    const w = frameSize(cells).w;
+    expect(z.milestone.x + z.milestone.w).toBeLessThanOrEqual(w);
+    // Far narrower than four full columns.
+    expect(w).toBe(zoneX('product') + BLOCK_W + FRAME_PAD + 3 * ZONE_STRIP);
+    expect(FRAME_MIN_W).toBe(w);
+
+    // A block in the engineering column widens it; an empty zone between two in use stays full.
+    expect(zoneRects(1000, [{ x: zoneX('engineering'), y: ZONE_TOP }]).engineering.strip).toBe(false);
+    const gap = zoneRects(1000, [{ x: zoneX('product'), y: ZONE_TOP }, { x: zoneX('agreed'), y: ZONE_TOP }]);
+    expect([gap.engineering.strip, gap.agreed.strip, gap.milestone.strip]).toEqual([false, false, true]);
   });
 
   it('places new frames to the right of the others', () => {
@@ -97,8 +119,9 @@ describe('placement', () => {
     expect(nextFrameSpot(doc).x).toBe(2000 + BLOCK_W + FRAME_PAD + FRAME_GAP);
   });
 
-  it('a frame holds its four zones and grows to hold its items, each with its own size', () => {
+  it('a frame holds its zones and grows to hold its items, each with its own size', () => {
     expect(frameSize([]).w).toBe(FRAME_MIN_W);
+    expect(frameSize([{ x: zoneX('engineering'), y: ZONE_TOP }]).w).toBe(zoneX('engineering') + BLOCK_W + FRAME_PAD + 2 * ZONE_STRIP);
     expect(frameSize([{ x: 2000, y: 900 }])).toEqual({ w: 2000 + BLOCK_W + FRAME_PAD, h: 900 + BLOCK_H + FRAME_PAD });
     expect(frameSize([{ x: 2000, y: 900, w: STICKY_W, h: STICKY_H }])).toEqual({ w: 2000 + STICKY_W + FRAME_PAD, h: 900 + STICKY_H + FRAME_PAD });
   });
@@ -115,12 +138,12 @@ describe('settling frames', () => {
     for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) expect(overlap(rects[i]!, rects[j]!)).toBe(false);
   };
 
-  it('frames saved at old narrow positions move right until clear, in order, and stay saved', () => {
+  it('frames saved overlapping move right until clear, in order, and stay saved', () => {
     const doc = createBoardDoc();
-    // Slice 1 frames were 1000 wide, 120 apart.
+    // Saved by an older, narrower layout: they overlap now.
     frame(doc, 'checkout', { x: 0, y: 0 });
-    frame(doc, 'ui', { x: 1120, y: 0 });
-    frame(doc, 'docs', { x: 2240, y: 0 });
+    frame(doc, 'ui', { x: 300, y: 0 });
+    frame(doc, 'docs', { x: 600, y: 0 });
     expect(settleFrames(doc)).toBe(2);
     expect(layoutMap(doc).get('frame:checkout')).toEqual({ x: 0, y: 0 });
     expect(layoutMap(doc).get('frame:ui')).toEqual({ x: FRAME_MIN_W + FRAME_GAP, y: 0 });
@@ -138,7 +161,7 @@ describe('settling frames', () => {
     itemsMap(doc).set('wide', item('wide', 'frame:a'));
     layoutMap(doc).set('wide', { x: FRAME_MIN_W, y: ZONE_TOP });
     expect(settleFrames(doc)).toBe(1);
-    expect(layoutMap(doc).get('frame:b')!.x).toBe(FRAME_MIN_W + BLOCK_W + FRAME_PAD + FRAME_GAP);
+    expect(layoutMap(doc).get('frame:b')!.x).toBe(frameSize([{ x: FRAME_MIN_W, y: ZONE_TOP }]).w + FRAME_GAP);
     noOverlap(doc);
   });
 

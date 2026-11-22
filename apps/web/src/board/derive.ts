@@ -5,6 +5,7 @@ import {
   DECISION_H,
   DECISION_W,
   frameSize,
+  zoneRects,
   STICKY_H,
   STICKY_W,
   zoneOf,
@@ -16,8 +17,10 @@ import {
   type FileEdge,
   type FileItem,
   type Frame,
+  type FrameZone,
   type HumanEdge,
   type Layout,
+  type ZoneRect,
   type StickyItem,
   type ThreadItem,
   type Zone,
@@ -85,6 +88,8 @@ export interface FrameView {
   y: number;
   w: number;
   h: number;
+  /** Its zone areas, relative to it: full columns for the zones in use, thin strips for the empty ones after. */
+  zones: Record<FrameZone, ZoneRect>;
 }
 
 export interface Views {
@@ -165,7 +170,8 @@ export function views(state: BoardState): Views {
       }
       for (const s of stickies) if (s.frame === frame.id) cell(s.id, 'sticky');
       for (const d of decisions) if (d.frame === frame.id) cell(d.id, 'decision');
-      return { frame, count, x: l.x, y: l.y, ...frameSize(cells) };
+      const size = frameSize(cells);
+      return { frame, count, x: l.x, y: l.y, ...size, zones: zoneRects(size.h, cells) };
     });
 
   const missingOf = new Map<string, string[]>();

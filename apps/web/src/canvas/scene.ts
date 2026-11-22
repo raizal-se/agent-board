@@ -1,4 +1,4 @@
-import { FRAME_HEADER, ZONES, zoneRects, zoneX, type CanvasShape, type Layout } from '@agent-board/model';
+import { FRAME_HEADER, ZONES, zoneX, type CanvasShape, type Layout } from '@agent-board/model';
 import { sizeIn, type BoardState, type FrameView, type Views } from '../board/derive';
 import {
   arrowEl,
@@ -128,7 +128,7 @@ export function docElements(state: BoardState, v: Views, local: ReadonlyMap<stri
   const out: El[] = [];
   for (const fv of v.frames) {
     const fid = fv.frame.id;
-    const rects = zoneRects(fv.h);
+    const rects = fv.zones;
     for (const z of ZONES) {
       const r = rects[z];
       out.push(
@@ -146,19 +146,24 @@ export function docElements(state: BoardState, v: Views, local: ReadonlyMap<stri
           customData: { ab: 'zone', zone: z, frame: fid },
         }),
       );
-      out.push(
-        textEl(`${fid}~zonelabel:${z}`, 'zone-label', {
-          text: z,
-          x: fv.x + zoneX(z),
-          y: fv.y + FRAME_HEADER + 6,
-          fontSize: ZONE_FONT,
-          measure,
-          color: MUTED,
-          locked: true,
-          frameId: fid,
-          customData: { zone: z, frame: fid },
-        }),
-      );
+      const label = textEl(`${fid}~zonelabel:${z}`, 'zone-label', {
+        text: z,
+        x: fv.x + zoneX(z),
+        y: fv.y + FRAME_HEADER + 6,
+        fontSize: ZONE_FONT,
+        measure,
+        color: MUTED,
+        locked: true,
+        frameId: fid,
+        customData: { zone: z, frame: fid },
+      });
+      // An empty zone's strip: the name reads bottom to top, at the top of the strip.
+      // Excalidraw turns an element about its centre, so place the centre and turn.
+      if (r.strip) {
+        const cx = fv.x + r.x + r.w / 2;
+        const cy = fv.y + r.y + 8 + label.width / 2;
+        out.push({ ...label, x: cx - label.width / 2, y: cy - label.height / 2, angle: (3 * Math.PI) / 2 } as El);
+      } else out.push(label);
     }
     for (const [id, b] of v.blocks) {
       if (b.item.frame !== fid) continue;

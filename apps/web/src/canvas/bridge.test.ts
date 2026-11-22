@@ -9,6 +9,10 @@ import {
   itemsMap,
   layoutMap,
   addSticky,
+  BLOCK_W,
+  FRAME_PAD,
+  ZONE_STRIP,
+  zoneX,
   type FileItem,
   type Layout,
 } from '@agent-board/model';
@@ -104,6 +108,22 @@ describe('doc to elements', () => {
     expect(arrow).toMatchObject({ type: 'arrow', locked: true, strokeStyle: 'dotted', startBinding: { elementId: 'x' }, endBinding: { elementId: 'y' } });
     expect(x.boundElements).toEqual([{ id: 'fe:x->a/y.md#', type: 'arrow' }]);
     expect(canvas.get('fe:x->a/y.md#~label')).toMatchObject({ type: 'text', originalText: 'uses', containerId: 'fe:x->a/y.md#' });
+  });
+
+  it('draws the zones in use as full columns and the empty ones after them as thin strips with turned names', () => {
+    // Frame a has blocks in product and engineering; frame b only in product.
+    for (const z of ['product', 'engineering']) expect(canvas.get(`frame:a~zone:${z}`).width).toBe(BLOCK_W + 24);
+    for (const z of ['agreed', 'milestone']) {
+      expect(canvas.get(`frame:a~zone:${z}`).width).toBe(ZONE_STRIP - 8);
+      expect(canvas.get(`frame:a~zonelabel:${z}`).angle).toBeCloseTo((3 * Math.PI) / 2);
+    }
+    expect(canvas.get('frame:a~zonelabel:engineering').angle).toBe(0);
+    expect(canvas.get('frame:b~zone:engineering').width).toBe(ZONE_STRIP - 8);
+    // The strips sit inside the frame, which is no wider than it needs to be.
+    const a = canvas.get('frame:a');
+    const m = canvas.get('frame:a~zone:milestone');
+    expect(m.x + m.width).toBeLessThanOrEqual(a.x + a.width);
+    expect(a.width).toBe(zoneX('engineering') + BLOCK_W + FRAME_PAD + 2 * ZONE_STRIP);
   });
 
   it('puts each frame just above its children', () => {
