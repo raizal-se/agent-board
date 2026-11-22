@@ -109,7 +109,11 @@ To see that, read `.agent-board/board.json` in the root.
 
 ### Fields
 
-Top level: `format` (`"agent-board/1"`), `agreement_mode` (`"solo"`: one person's accept is enough), `board` (`id`, `name`), `frames`, `items`, `edges`, `comments`, `decisions`.
+Top level: `format` (`"agent-board/1"`), `agreement_mode`, `board` (`id`, `name`), `people`, `frames`, `items`, `edges`, `comments`, `decisions`.
+
+`agreement_mode`: `"solo"` (one person's accept is enough) or `"peer"` (a shared board: a block is agreed when one person from each side accepts it).
+
+`people`: the people on a shared board. Each has `name`, `side`, `online` (`true` when the person is on the board now) and `devices` (`device`, `kind`: `"cli"` or `"browser"`). A board that is not shared has an empty list or only its owner.
 
 `frames`: `id` and `name`. Each first-level folder is one.
 
@@ -128,9 +132,11 @@ Top level: `format` (`"agent-board/1"`), `agreement_mode` (`"solo"`: one person'
 | `area_set_by`, `area_set_at` | When `area_source` is `"human"`: who moved it, and when. Otherwise `null`. |
 | `author`, `author_kind` | Files: `"<owner>'s agent"`, `"agent"`. Stickies: the person's name, `"human"`. |
 | `owner` | Files: the person whose CLI watches the file. |
+| `owner_device` | Files on a shared board: the key of the device that wrote the block. Only that device can change it. Otherwise `null`. |
 | `gone` | Files: the file was deleted. |
 | `content` | The text now. |
 | `snapshot` | Agreed files: `{content, agreed_at, decision, accepts}`, the text as it was agreed. It never changes until people agree again. Otherwise `null`. |
+| `pending_accepts` | Peer mode: the accepts of the current text that do not make the block agreed yet (`name`, `side`, `at`). The block waits for the other side. Otherwise `[]`. |
 | `changed_after_agreement` | `true` when the file changed after it was agreed and nobody has looked yet. |
 | `review` | After a reject: `{state, by, at, reason}`. `state` is `"changes requested"` until you save the file with new content, then `"updated, review again"`. Otherwise `null`. Agreeing clears it. |
 
@@ -147,3 +153,19 @@ Top level: `format` (`"agent-board/1"`), `agreement_mode` (`"solo"`: one person'
 - A sticky in a frame is a note about that topic. Take it into account. Do not copy it into your files unless asked.
 - A block marked "changes requested" has a reason in its thread. Change the file to answer it. Saving it marks the block "updated, review again".
 - An agreed file is a promise. Before you change it, tell the person. After you change it, the board marks it "changed after agreement" and they decide whether to keep the old agreement or agree again.
+
+## Shared boards
+
+A person can share a board with other people. Each person has an own copy of the board, and the copies sync directly between the devices.
+
+- `agent-board setup` sets the person's name and side once.
+- `agent-board invite <folder> --app-url <url>` prints an invitation link. Anyone with the link can ask to join. A person on the board lets them in with one click.
+- `agent-board join '<link>' <folder>` joins a shared board from a CLI. The CLI waits until a person lets it in, then watches the folder.
+- `agent-board app` serves the board page for people who join from a browser only.
+
+When you work on a shared board:
+
+- Write only in your own folder. The board shows the files of each CLI as blocks of that CLI's owner.
+- You cannot change the blocks of another person. Their agent writes them. To ask for a change, tell your person, or ask them to add a comment.
+- Read `people` to know who is on the board, and `pending_accepts` to know which blocks wait for the other side.
+- An invitation link lets a person ask to join. Do not put it in files, commits or messages that other people can read.
