@@ -1,6 +1,5 @@
-import type { NodeProps } from '@xyflow/react';
 import { memo, useEffect, useRef, useState } from 'react';
-import type { BlockNode } from '../board/derive';
+import type { BlockData } from '../board/derive';
 import { BlockChrome } from './BlockChrome';
 import { FIT_SCRIPT, fitToContent, PAGE_H, PAGE_W, THUMB_H, THUMB_W, WHOLE_PAGE, type ThumbFit } from './thumbFit';
 
@@ -16,7 +15,7 @@ export const HTML_SANDBOX = 'allow-scripts';
  * moves the block). It loads the first time it comes on screen, and stays loaded after that.
  * The page reports the box of its content and the thumbnail zooms to it (see thumbFit.ts).
  */
-export const HtmlBlock = memo(function HtmlBlock({ data }: NodeProps<BlockNode>) {
+export const HtmlBlock = memo(function HtmlBlock({ data }: { data: BlockData }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [visible, setVisible] = useState(false);

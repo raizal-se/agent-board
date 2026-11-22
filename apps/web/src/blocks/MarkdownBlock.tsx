@@ -1,6 +1,5 @@
-import type { NodeProps } from '@xyflow/react';
 import { memo, useMemo } from 'react';
-import type { BlockNode } from '../board/derive';
+import type { BlockData } from '../board/derive';
 import { BlockChrome } from './BlockChrome';
 import { renderMarkdown } from './markdown';
 
@@ -9,10 +8,10 @@ export function MarkdownBody({ text }: { text: string }) {
   return <div className="markdown-body" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-export const MarkdownBlock = memo(function MarkdownBlock({ data }: NodeProps<BlockNode>) {
+export const MarkdownBlock = memo(function MarkdownBlock({ data }: { data: BlockData }) {
   return (
     <BlockChrome data={data}>
-      <div className="block-body nowheel">
+      <div className="block-body">
         <MarkdownBody text={data.item.text} />
       </div>
     </BlockChrome>

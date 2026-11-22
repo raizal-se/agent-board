@@ -1,7 +1,7 @@
 import { addComment, setThreadResolved, type CommentItem, type ThreadItem } from '@agent-board/model';
 import { useEffect, useRef, useState } from 'react';
 import { useBoardActions } from '../board/actions';
-import { shortTime } from './DecisionNode';
+import { shortTime } from './DecisionCard';
 
 /**
  * The comment thread on one item: read it, add a comment, resolve it. A comment on a resolved

@@ -1,7 +1,7 @@
 import { agreeAgain, changedAfterAgreement, keepSnapshot, lineDiff, type Agreement, type FileItem } from '@agent-board/model';
 import { useEffect, useMemo } from 'react';
 import { useBoardActions } from '../board/actions';
-import { shortTime } from './DecisionNode';
+import { shortTime } from './DecisionCard';
 
 /**
  * The agreed snapshot and the file as it is now, side by side. An edited line shows as one changed

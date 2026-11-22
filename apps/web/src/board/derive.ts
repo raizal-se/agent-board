@@ -4,28 +4,24 @@ import {
   changedAfterAgreement,
   DECISION_H,
   DECISION_W,
-  fileName,
   frameSize,
   STICKY_H,
   STICKY_W,
   zoneOf,
-  zoneRects,
   type Agreement,
+  type CanvasShape,
   type CommentItem,
   type DecisionItem,
   type Device,
   type FileEdge,
   type FileItem,
   type Frame,
-  type FrameZone,
   type HumanEdge,
   type Layout,
-  type Rect,
   type StickyItem,
   type ThreadItem,
   type Zone,
 } from '@agent-board/model';
-import { MarkerType, type Edge, type Node } from '@xyflow/react';
 
 export interface BoardState {
   frames: Frame[];
@@ -48,6 +44,8 @@ export interface BoardState {
   /** Agreements by file item id. */
   agreements?: ReadonlyMap<string, Agreement>;
   devices?: ReadonlyMap<string, Device>;
+  /** Free drawing, by element id. */
+  canvas?: ReadonlyMap<string, CanvasShape>;
 }
 
 /** The comment pin of an item: how many comments, and whether its thread is resolved. */
@@ -56,7 +54,6 @@ export interface Pin {
   resolved: boolean;
 }
 
-export type FrameData = { frame: Frame; count: number; zones: Record<FrameZone, Rect> };
 export type BlockData = {
   item: FileItem;
   missing: string[];
@@ -69,22 +66,40 @@ export type BlockData = {
 };
 export type StickyData = { sticky: StickyItem; pin: Pin };
 export type DecisionData = { decision: DecisionItem; covers: string[]; pin: Pin };
-export type FrameNode = Node<FrameData, 'frame'>;
-export type BlockNode = Node<BlockData, 'markdown' | 'html'>;
-export type StickyNode = Node<StickyData, 'sticky'>;
-export type DecisionNode = Node<DecisionData, 'decision'>;
-export type BoardNode = FrameNode | BlockNode | StickyNode | DecisionNode;
 
-export type EdgeData = { kind: 'file'; file: string } | { kind: 'human'; author: string };
+/** A link drawn between two things on the board. */
+export interface DrawnEdge {
+  id: string;
+  from: string;
+  to: string;
+  label: string;
+  kind: 'file' | 'human';
+}
 
-export interface Derived {
-  nodes: BoardNode[];
-  edges: Edge<EdgeData>[];
+export interface FrameView {
+  frame: Frame;
+  /** Visible file blocks in it. */
+  count: number;
+  /** Position (absolute) and size: room for its zones and every item in it. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface Views {
+  frames: FrameView[];
+  /** File blocks on the board, by item id (not gone, in a known frame). */
+  blocks: Map<string, BlockData>;
+  decisions: Map<string, DecisionData>;
+  stickies: Map<string, StickyData>;
+  /** Edges with both ends on the board. */
+  edges: DrawnEdge[];
   /** Blocks of deleted files, for the "hidden blocks" list. */
   hidden: FileItem[];
 }
 
-const ORIGIN: Layout = { x: 0, y: 0 };
+export const ORIGIN: Layout = { x: 0, y: 0 };
 const NO_PIN: Pin = { count: 0, resolved: false };
 
 const AGENT_COLORS = ['#7C3AED', '#0891B2', '#DB2777', '#65A30D', '#C2410C', '#2563EB'];
@@ -103,21 +118,23 @@ export function nameOf(item: FileItem | StickyItem | DecisionItem): string {
   return `decision "${item.text.length > 40 ? `${item.text.slice(0, 40)}…` : item.text}"`;
 }
 
+/** The size an item takes: its own if it was resized, else the default for its kind. */
+export function sizeIn(layout: Layout | undefined, kind: 'file' | 'sticky' | 'decision'): { w: number; h: number } {
+  const d = kind === 'file' ? { w: BLOCK_W, h: BLOCK_H } : kind === 'sticky' ? { w: STICKY_W, h: STICKY_H } : { w: DECISION_W, h: DECISION_H };
+  return { w: layout?.w ?? d.w, h: layout?.h ?? d.h };
+}
+
 /**
- * The board doc as React Flow nodes and edges. Frames come first (React Flow needs parents before
- * children); item positions are relative to their frame. A frame grows to hold its items.
+ * What the board shows, from the doc: frames with their size, the data each block, note and
+ * decision draws, and the edges whose two ends are on the board. Positions of items stay relative
+ * to their frame (as in the doc); a frame grows to hold its items.
  */
-export function derive(state: BoardState): Derived {
+export function views(state: BoardState): Views {
   const stickies = state.stickies ?? [];
   const decisions = state.decisions ?? [];
   const agreements = state.agreements ?? new Map<string, Agreement>();
   const devices = state.devices ?? new Map<string, Device>();
   const threads = state.threads ?? new Map<string, ThreadItem>();
-
-  const visible = state.items.filter((i) => !i.gone);
-  const hidden = state.items.filter((i) => i.gone).sort((a, b) => a.path.localeCompare(b.path));
-  const byId = new Map<string, FileItem | StickyItem | DecisionItem>();
-  for (const i of [...state.items, ...stickies, ...decisions]) byId.set(i.id, i);
   const frameIds = new Set(state.frames.map((f) => f.id));
 
   const pins = new Map<string, Pin>();
@@ -128,33 +145,27 @@ export function derive(state: BoardState): Derived {
   }
   const pinOf = (id: string) => pins.get(id) ?? NO_PIN;
 
-  const sized = (id: string, w: number, h: number) => {
-    const l = state.layout.get(id) ?? ORIGIN;
-    return { x: l.x, y: l.y, w, h };
-  };
+  const byId = new Map<string, FileItem | StickyItem | DecisionItem>();
+  for (const i of [...state.items, ...stickies, ...decisions]) byId.set(i.id, i);
 
-  const frameNodes: FrameNode[] = [...state.frames]
+  const frames: FrameView[] = [...state.frames]
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((frame) => {
       const l = state.layout.get(frame.id) ?? ORIGIN;
       let count = 0;
       const cells: { x: number; y: number; w: number; h: number }[] = [];
+      const cell = (id: string, kind: 'file' | 'sticky' | 'decision') => {
+        const p = state.layout.get(id) ?? ORIGIN;
+        cells.push({ x: p.x, y: p.y, ...sizeIn(p, kind) });
+      };
       for (const item of state.items) {
         if (item.frame !== frame.id) continue;
         if (!item.gone) count++;
-        cells.push(sized(item.id, BLOCK_W, BLOCK_H));
+        cell(item.id, 'file');
       }
-      for (const s of stickies) if (s.frame === frame.id) cells.push(sized(s.id, STICKY_W, STICKY_H));
-      for (const d of decisions) if (d.frame === frame.id) cells.push(sized(d.id, DECISION_W, DECISION_H));
-      const { w, h } = frameSize(cells);
-      return {
-        id: frame.id,
-        type: 'frame',
-        position: { x: l.x, y: l.y },
-        data: { frame, count, zones: zoneRects(h) },
-        style: { width: w, height: h },
-        zIndex: 0,
-      };
+      for (const s of stickies) if (s.frame === frame.id) cell(s.id, 'sticky');
+      for (const d of decisions) if (d.frame === frame.id) cell(d.id, 'decision');
+      return { frame, count, x: l.x, y: l.y, ...frameSize(cells) };
     });
 
   const missingOf = new Map<string, string[]>();
@@ -166,108 +177,39 @@ export function derive(state: BoardState): Derived {
     missingOf.set(e.from, list);
   }
 
-  const blockNodes: BlockNode[] = visible
-    .filter((item) => frameIds.has(item.frame))
-    .sort((a, b) => a.path.localeCompare(b.path))
-    .map((item) => {
-      const p = state.layout.get(item.id) ?? ORIGIN;
-      const agreement = agreements.get(item.id);
-      return {
-        id: item.id,
-        type: item.type,
-        parentId: item.frame,
-        position: { x: p.x, y: p.y },
-        data: {
-          item,
-          missing: missingOf.get(item.id)?.sort() ?? [],
-          agreement,
-          changed: changedAfterAgreement(item, agreement),
-          zone: zoneOf(agreement, devices.get(item.owner)?.side ?? 'product'),
-          pin: pinOf(item.id),
-          agentColor: agentColor(item.owner),
-        },
-        style: { width: BLOCK_W, height: BLOCK_H },
-        zIndex: 1,
-      };
-    });
-
-  const decisionNodes: DecisionNode[] = decisions
-    .filter((d) => frameIds.has(d.frame))
-    .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
-    .map((d) => {
-      const p = state.layout.get(d.id) ?? ORIGIN;
-      const covers = d.covers.map((id) => byId.get(id)).map((i) => (i?.kind === 'file' ? i.path : '(removed)'));
-      return {
-        id: d.id,
-        type: 'decision',
-        parentId: d.frame,
-        position: { x: p.x, y: p.y },
-        data: { decision: d, covers, pin: pinOf(d.id) },
-        style: { width: DECISION_W, height: DECISION_H },
-        zIndex: 1,
-      };
-    });
-
-  // Notes sit above blocks, so one dropped on a block stays readable. A note whose frame is gone
-  // stands on its own.
-  const stickyNodes: StickyNode[] = [...stickies]
-    .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
-    .map((s) => {
-      const p = state.layout.get(s.id) ?? ORIGIN;
-      const inFrame = s.frame && frameIds.has(s.frame) ? s.frame : undefined;
-      return {
-        id: s.id,
-        type: 'sticky',
-        ...(inFrame ? { parentId: inFrame } : {}),
-        position: { x: p.x, y: p.y },
-        data: { sticky: s, pin: pinOf(s.id) },
-        style: { width: STICKY_W, height: STICKY_H },
-        zIndex: 2,
-      };
-    });
-
-  const drawn = new Set([...blockNodes, ...decisionNodes, ...stickyNodes].map((n) => n.id));
-  const edges: Edge<EdgeData>[] = [];
-  for (const e of state.edges) {
-    if (!e.to || !drawn.has(e.from) || !drawn.has(e.to)) continue;
-    const from = byId.get(e.from) as FileItem;
-    const to = byId.get(e.to)!;
-    edges.push({
-      id: e.id,
-      type: 'floating',
-      source: e.from,
-      target: e.to,
-      label: e.label || undefined,
-      data: { kind: 'file', file: fileName(from.path) },
-      className: 'file-edge',
-      ariaLabel: `link from ${from.path} to ${nameOf(to)}`,
-      // Dotted: it comes from a file, and only a change to that file removes it.
-      style: { strokeDasharray: '2 5', strokeWidth: 1.75, strokeLinecap: 'round' },
-      markerEnd: { type: MarkerType.ArrowClosed },
-      selectable: false,
-      // Above frames (0). Blocks (1) come later in the page, so a block still covers an edge that
-      // crosses it. App sets zIndexMode="manual" so React Flow keeps these numbers as they are.
-      zIndex: 1,
-    });
-  }
-  for (const e of state.humanEdges ?? []) {
-    if (!drawn.has(e.from) || !drawn.has(e.to)) continue;
-    edges.push({
-      id: e.id,
-      type: 'floating',
-      source: e.from,
-      target: e.to,
-      label: e.label || undefined,
-      data: { kind: 'human', author: e.author },
-      className: 'human-edge',
-      ariaLabel: `drawn link from ${nameOf(byId.get(e.from)!)} to ${nameOf(byId.get(e.to)!)}`,
-      style: { strokeWidth: 2 },
-      markerEnd: { type: MarkerType.ArrowClosed },
-      selectable: true,
-      interactionWidth: 32,
-      zIndex: 1,
+  const blocks = new Map<string, BlockData>();
+  for (const item of [...state.items].sort((a, b) => a.path.localeCompare(b.path))) {
+    if (item.gone || !frameIds.has(item.frame)) continue;
+    const agreement = agreements.get(item.id);
+    blocks.set(item.id, {
+      item,
+      missing: missingOf.get(item.id)?.sort() ?? [],
+      agreement,
+      changed: changedAfterAgreement(item, agreement),
+      zone: zoneOf(agreement, devices.get(item.owner)?.side ?? 'product'),
+      pin: pinOf(item.id),
+      agentColor: agentColor(item.owner),
     });
   }
 
-  return { nodes: [...frameNodes, ...blockNodes, ...decisionNodes, ...stickyNodes], edges, hidden };
+  const decisionData = new Map<string, DecisionData>();
+  for (const d of [...decisions].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))) {
+    if (!frameIds.has(d.frame)) continue;
+    const covers = d.covers.map((id) => byId.get(id)).map((i) => (i?.kind === 'file' ? i.path : '(removed)'));
+    decisionData.set(d.id, { decision: d, covers, pin: pinOf(d.id) });
+  }
+
+  // A note whose frame is gone stands on its own.
+  const stickyData = new Map<string, StickyData>();
+  for (const s of [...stickies].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))) {
+    stickyData.set(s.id, { sticky: s.frame && !frameIds.has(s.frame) ? { ...s, frame: null } : s, pin: pinOf(s.id) });
+  }
+
+  const drawn = (id: string | null) => !!id && (blocks.has(id) || decisionData.has(id) || stickyData.has(id));
+  const edges: DrawnEdge[] = [];
+  for (const e of state.edges) if (drawn(e.from) && drawn(e.to)) edges.push({ id: e.id, from: e.from, to: e.to!, label: e.label, kind: 'file' });
+  for (const e of state.humanEdges ?? []) if (drawn(e.from) && drawn(e.to)) edges.push({ id: e.id, from: e.from, to: e.to, label: e.label, kind: 'human' });
+
+  const hidden = state.items.filter((i) => i.gone).sort((a, b) => a.path.localeCompare(b.path));
+  return { frames, blocks, decisions: decisionData, stickies: stickyData, edges, hidden };
 }

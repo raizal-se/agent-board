@@ -1,5 +1,4 @@
 import { fileName } from '@agent-board/model';
-import { Handle, Position } from '@xyflow/react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useBoardActions } from '../board/actions';
 import type { BlockData } from '../board/derive';
@@ -25,12 +24,11 @@ export function BlockChrome({ data, children }: { data: BlockData; children: Rea
       data-changed={changed ? 'yes' : 'no'}
       style={{ '--agent': data.agentColor } as CSSProperties}
     >
-      <Handle type="target" position={Position.Left} isConnectable={false} className="block-handle" />
       <div className="block-title" title={item.path}>
         <span className="block-kind">{item.type === 'html' ? 'HTML' : 'MD'}</span>
         <span className="block-name">{fileName(item.path)}</span>
         <CommentPin target={item.id} name={item.path} pin={pin} />
-        <button type="button" className="block-open nodrag" onClick={() => open(item)} aria-label={`open ${item.path}`}>
+        <button type="button" className="block-open" onClick={() => open(item)} aria-label={`open ${item.path}`}>
           open
         </button>
       </div>
@@ -47,7 +45,7 @@ export function BlockChrome({ data, children }: { data: BlockData; children: Rea
         )}
       </div>
       {changed && (
-        <div className="changed-mark nodrag" data-testid="changed-mark">
+        <div className="changed-mark" data-testid="changed-mark">
           <span>changed after agreement</span>
           <button type="button" onClick={(e) => {
               e.stopPropagation();
@@ -65,7 +63,6 @@ export function BlockChrome({ data, children }: { data: BlockData; children: Rea
           ))}
         </div>
       )}
-      <Handle type="source" position={Position.Right} isConnectable={false} className="block-handle" />
     </div>
   );
 }

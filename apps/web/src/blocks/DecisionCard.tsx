@@ -1,6 +1,5 @@
-import type { NodeProps } from '@xyflow/react';
 import { memo } from 'react';
-import type { DecisionNode as DecisionNodeType } from '../board/derive';
+import type { DecisionData } from '../board/derive';
 import { CommentPin } from './CommentPin';
 
 export function shortTime(at: number): string {
@@ -8,7 +7,7 @@ export function shortTime(at: number): string {
 }
 
 /** A decision: what was agreed, on which blocks, by whom and when. Made by a person on the board. */
-export const DecisionNode = memo(function DecisionNode({ data }: NodeProps<DecisionNodeType>) {
+export const DecisionCard = memo(function DecisionCard({ data }: { data: DecisionData }) {
   const { decision, covers, pin } = data;
   return (
     <div className="decision" data-testid="decision" data-id={decision.id}>
@@ -16,7 +15,7 @@ export const DecisionNode = memo(function DecisionNode({ data }: NodeProps<Decis
         <span className="decision-label">Decision</span>
         <CommentPin target={decision.id} name="decision" pin={pin} />
       </div>
-      <div className="decision-text nowheel">{decision.text}</div>
+      <div className="decision-text">{decision.text}</div>
       <div className="decision-covers" title={covers.join('\n')}>
         covers {covers.join(', ')}
       </div>

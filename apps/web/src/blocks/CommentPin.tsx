@@ -8,7 +8,7 @@ export function CommentPin({ target, name, pin }: { target: string; name: string
   return (
     <button
       type="button"
-      className={`comment-pin nodrag pin-${state}`}
+      className={`comment-pin pin-${state}`}
       data-testid="comment-pin"
       data-count={pin.count}
       aria-label={`comments on ${name}: ${pin.count}${pin.resolved ? ', resolved' : ''}`}
