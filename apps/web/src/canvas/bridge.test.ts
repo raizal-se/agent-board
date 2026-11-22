@@ -305,6 +305,20 @@ describe('locked file items', () => {
     expect(canvas.get('fe:x->a/y.md#').isDeleted).toBe(false);
   });
 
+  it('a copy of a block (Ctrl+D, paste) moves nothing, is not kept, and leaves the canvas', () => {
+    const x = canvas.get('x');
+    canvas.add({ ...x, id: 'copy-of-x', x: x.x + 500, y: x.y + 500, version: 1, versionNonce: 1 });
+    const label = canvas.get('fe:x->a/y.md#~label');
+    canvas.add({ ...label, id: 'copy-of-label', containerId: 'copy-of-x', version: 1, versionNonce: 1 });
+    sync.flush();
+    expect(layoutOf('x')).toEqual({ x: 32, y: 76 });
+    expect(itemsMap(doc).has('copy-of-x')).toBe(false);
+    expect([...canvasMap(doc).keys()]).toEqual([]);
+    sync.run();
+    expect(canvas.scene.some((e) => e.id.startsWith('copy-of-') && !e.isDeleted)).toBe(false);
+    expect(canvas.get('x')).toMatchObject({ x: 32, y: 76 });
+  });
+
   it('a changed block link is put back', () => {
     canvas.edit('x', { link: 'https://example.com' });
     sync.run();
