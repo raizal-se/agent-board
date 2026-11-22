@@ -1,7 +1,8 @@
 import type { Invite } from '@agent-board/sync/peer';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { connectPeer, knownMember, savedMe, type Me, type PeerConnection } from './browserPeer';
 import { JoinForm, JoinWait } from './JoinScreen';
+import { useToast } from './SharedBar';
 import { useSession } from './useSession';
 
 /** Nostr relays for tests and private setups (`localStorage['agent-board:relays']`, comma separated). */
@@ -55,8 +56,29 @@ export function PeerRoot({ invite, appUrl, children }: { invite: Invite; appUrl:
 function Joined({ conn, onBack, children }: { conn: PeerConnection; onBack: () => void; children: (conn: PeerConnection) => ReactNode }) {
   const view = useSession(conn.session);
   const peer = view.peer;
-  if (!peer || !peer.member || peer.join.step === 'rejected') {
+  const inside = !!peer && peer.member && peer.join.step !== 'rejected';
+  // The board mounts only after approval, so the wait screen says when the person got in.
+  const waited = useRef(false);
+  const [toast, showToast] = useToast();
+  const asking = peer?.join.step === 'waiting';
+  useEffect(() => {
+    if (asking) waited.current = true;
+    else if (inside && waited.current) {
+      waited.current = false;
+      showToast("You're in");
+    }
+  }, [inside, asking]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!inside) {
     return <JoinWait step={peer?.join ?? { step: 'looking' }} fingerprint={peer?.me.fingerprint} onRetry={onBack} />;
   }
-  return <>{children(conn)}</>;
+  return (
+    <>
+      {children(conn)}
+      {toast && (
+        <div className="banner banner-ok toast-float" data-testid="toast">
+          {toast}
+        </div>
+      )}
+    </>
+  );
 }

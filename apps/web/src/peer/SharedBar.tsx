@@ -161,7 +161,7 @@ export function ConnectAgentDialog({ view, onClose }: { view: SessionView; onClo
 }
 
 /** A short note that goes away by itself ("You're in"). */
-function useToast(): [string | null, (t: string) => void] {
+export function useToast(): [string | null, (t: string) => void] {
   const [text, setText] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -179,14 +179,7 @@ function useToast(): [string | null, (t: string) => void] {
 export function SharedBar({ view, session }: { view: SessionView; session: Session }) {
   const [people, setPeople] = useState(false);
   const [agent, setAgent] = useState(false);
-  const [toast, showToast] = useToast();
   const peer = view.peer;
-  const wasMember = useRef<boolean | null>(null);
-  useEffect(() => {
-    if (!peer) return;
-    if (wasMember.current === false && peer.member) showToast("You're in");
-    wasMember.current = peer.member;
-  }, [peer?.member]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const offline = peer ? offlineText(peer) : null;
   return (
@@ -210,11 +203,6 @@ export function SharedBar({ view, session }: { view: SessionView; session: Sessi
             {blockedText(n)}
           </div>
         ))}
-        {toast && (
-          <div className="banner banner-ok" data-testid="toast">
-            {toast}
-          </div>
-        )}
         {peer && <Requests peer={peer} session={session} />}
       </div>
       {people && peer && <PeoplePanel view={view} session={session} onClose={() => setPeople(false)} />}
