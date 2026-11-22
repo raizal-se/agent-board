@@ -51,17 +51,27 @@ test('the first view fits the board to the width, just under the bars, with no e
   expect(tl.y).toBeLessThan(height / 4);
 });
 
-test('tap a block to select it; its open button shows the full view', async ({ page }) => {
+test('tap a block to select it; its open button shows the full view, and so does the Open in the bar', async ({ page }) => {
   await openBoard(page, cli!, 'checkout/flow.md');
   const p = await pressPoint(page, await idOf(page, 'checkout/flow.md'));
   await page.touchscreen.tap(p.x, p.y);
-  await expect(page.getByTestId('selection-bar'), 'the tap selects the block').toContainText('checkout/flow.md');
+  const bar = page.getByTestId('selection-bar');
+  await expect(bar, 'the tap selects the block').toContainText('checkout/flow.md');
+  // On a phone the bar sits at the bottom, clear of the blocks' own buttons at their top.
+  const barBox = (await bar.boundingBox())!;
+  expect(barBox.y, 'the selection bar is in the lower half of the screen').toBeGreaterThan(page.viewportSize()!.height / 2);
   const open = block(page, 'checkout/flow.md').getByRole('button', { name: 'open checkout/flow.md' });
   await expect(open, "the block's open button is on screen").toBeInViewport();
   // Bounded: if something covers the button (a bar), the error names it instead of the test timing out.
   await open.tap({ timeout: 10_000 });
   await expect(page.getByTestId('fullview'), 'the open button shows the full view').toBeVisible();
   await expect(page.getByTestId('fullview')).toContainText('Card form, then the payment API.');
+
+  await page.getByTestId('fullview').getByRole('button', { name: 'Close' }).tap({ timeout: 10_000 });
+  await expect(page.getByTestId('fullview'), 'Close shuts the full view').toHaveCount(0);
+  await expect(bar, 'the block is still selected').toContainText('checkout/flow.md');
+  await bar.getByRole('button', { name: 'Open', exact: true }).tap({ timeout: 10_000 });
+  await expect(page.getByTestId('fullview'), "the bar's Open shows the full view").toContainText('Card form, then the payment API.');
 });
 
 test('pinch zooms in, two fingers pan', async ({ page }) => {
