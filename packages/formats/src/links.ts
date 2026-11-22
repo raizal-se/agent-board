@@ -28,18 +28,24 @@ function dedupe(links: FileLink[]): FileLink[] {
   });
 }
 
-/** Links from markdown front matter: `links: [{ to, label }]`. Never throws. */
-export function parseMarkdownLinks(text: string): FileLink[] {
+/** The front matter of a markdown file as an object, or null if it has none or it does not parse. */
+function frontMatter(text: string): Record<string, unknown> | null {
   const m = FRONT_MATTER.exec(text);
-  if (!m) return [];
+  if (!m) return null;
   let data: unknown;
   try {
     data = parseYaml(m[1] ?? '');
   } catch {
-    return [];
+    return null;
   }
-  if (!data || typeof data !== 'object') return [];
-  const raw = (data as Record<string, unknown>).links;
+  return data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
+}
+
+/** Links from markdown front matter: `links: [{ to, label }]`. Never throws. */
+export function parseMarkdownLinks(text: string): FileLink[] {
+  const data = frontMatter(text);
+  if (!data) return [];
+  const raw = data.links;
   if (!Array.isArray(raw)) return [];
   const out: FileLink[] = [];
   for (const entry of raw) {
@@ -65,19 +71,27 @@ function decodeEntities(s: string): string {
     .replace(/&amp;/g, '&');
 }
 
-/** Links from `<meta name="board:link" content="path | label">`. Never throws. */
-export function parseHtmlLinks(html: string): FileLink[] {
+/** The `content` of each `<meta name="…">` with this name, in order. Comments are skipped. */
+function metaContents(html: string, name: string): string[] {
   const withoutComments = html.replace(/<!--[\s\S]*?-->/g, '');
-  const out: FileLink[] = [];
+  const out: string[] = [];
   for (const tag of withoutComments.matchAll(META_TAG)) {
     const attrs: Record<string, string> = {};
     for (const a of (tag[1] ?? '').matchAll(ATTR)) {
       attrs[(a[1] ?? '').toLowerCase()] = decodeEntities(a[2] ?? a[3] ?? a[4] ?? '');
     }
-    if (attrs.name?.trim().toLowerCase() !== 'board:link' || attrs.content === undefined) continue;
-    const bar = attrs.content.indexOf('|');
-    const to = normalizePath(bar === -1 ? attrs.content : attrs.content.slice(0, bar));
-    const label = bar === -1 ? '' : attrs.content.slice(bar + 1).trim();
+    if (attrs.name?.trim().toLowerCase() === name && attrs.content !== undefined) out.push(attrs.content);
+  }
+  return out;
+}
+
+/** Links from `<meta name="board:link" content="path | label">`. Never throws. */
+export function parseHtmlLinks(html: string): FileLink[] {
+  const out: FileLink[] = [];
+  for (const content of metaContents(html, 'board:link')) {
+    const bar = content.indexOf('|');
+    const to = normalizePath(bar === -1 ? content : content.slice(0, bar));
+    const label = bar === -1 ? '' : content.slice(bar + 1).trim();
     if (!to) continue;
     out.push({ to, label });
   }
@@ -99,4 +113,25 @@ export function parseFileLinks(path: string, text: string): FileLink[] {
   if (type === 'markdown') return parseMarkdownLinks(text);
   if (type === 'html') return parseHtmlLinks(text);
   return [];
+}
+
+/** The two sides of a feature that a file can say it belongs to. */
+export type FileArea = 'product' | 'engineering';
+
+function areaValue(v: unknown): FileArea | null {
+  if (typeof v !== 'string') return null;
+  const s = v.trim().toLowerCase();
+  return s === 'product' || s === 'engineering' ? s : null;
+}
+
+/**
+ * The area a file says it belongs to: `area: product | engineering` in markdown front matter, or
+ * `<meta name="board:area" content="engineering">` in HTML (the first such tag). Null when the file
+ * says nothing, or something else. Never throws.
+ */
+export function parseFileArea(path: string, text: string): FileArea | null {
+  const type = fileTypeOf(path);
+  if (type === 'markdown') return areaValue(frontMatter(text)?.area);
+  if (type === 'html') return areaValue(metaContents(text, 'board:area')[0]);
+  return null;
 }

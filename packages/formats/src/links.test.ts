@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fileTypeOf, parseFileLinks, parseHtmlLinks, parseMarkdownLinks, stripFrontMatter } from './links';
+import { fileTypeOf, parseFileLinks, parseHtmlLinks, parseMarkdownLinks, stripFrontMatter, parseFileArea } from './links';
 
 describe('parseMarkdownLinks', () => {
   it('reads links from front matter (design 4.3 example)', () => {
@@ -99,5 +99,26 @@ describe('fileTypeOf', () => {
     expect(fileTypeOf('c.htm')).toBe('html');
     expect(fileTypeOf('d.txt')).toBeNull();
     expect(fileTypeOf('md')).toBeNull();
+  });
+});
+
+describe('parseFileArea', () => {
+  it('reads area from markdown front matter', () => {
+    expect(parseFileArea('a.md', '---\narea: engineering\n---\n# A\n')).toBe('engineering');
+    expect(parseFileArea('a.md', '---\narea: Product \n---\n')).toBe('product');
+  });
+
+  it('reads area from an HTML meta tag', () => {
+    expect(parseFileArea('a.html', '<head><meta name="board:area" content="engineering"></head>')).toBe('engineering');
+    expect(parseFileArea('a.htm', "<meta content='product' name='Board:Area'>")).toBe('product');
+    expect(parseFileArea('a.html', '<!-- <meta name="board:area" content="product"> -->')).toBeNull();
+  });
+
+  it('is null when the file says nothing or something else', () => {
+    expect(parseFileArea('a.md', '# no front matter\n')).toBeNull();
+    expect(parseFileArea('a.md', '---\narea: design\n---\n')).toBeNull();
+    expect(parseFileArea('a.md', '---\narea: [\n---\n')).toBeNull();
+    expect(parseFileArea('a.html', '<p>area: product</p>')).toBeNull();
+    expect(parseFileArea('a.txt', '---\narea: product\n---\n')).toBeNull();
   });
 });
