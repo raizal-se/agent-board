@@ -1,6 +1,9 @@
 import {
   agreementsMap,
   boardMap,
+  gridsMap,
+  reviewsMap,
+  sidesMap,
   canvasMap,
   edgesMap,
   framesMap,
@@ -83,6 +86,9 @@ export function readBoard(doc: Y.Doc): Required<BoardState> {
     agreements: new Map<string, Agreement>(agreementsMap(doc).entries()),
     devices: new Map(boardMap<Device>(doc, 'devices').entries()),
     canvas: new Map(canvasMap(doc).entries()),
+    sides: new Map(sidesMap(doc).entries()),
+    grids: new Map(gridsMap(doc).entries()),
+    reviews: new Map(reviewsMap(doc).entries()),
   };
 }
 

@@ -1,7 +1,11 @@
 import {
   BLOCK_W,
-  FRAME_MIN_W,
+  FRAME_PAD,
+  frameSizeFor,
+  MIN_GRID,
   STICKY_H,
+  type AreaOverride,
+  type Review,
   type Agreement,
   type CommentItem,
   type DecisionItem,
@@ -35,8 +39,9 @@ describe('views', () => {
   it('a frame grows to hold a block dragged to its edge', () => {
     const layout = new Map<string, Layout>([['x', { x: 2000, y: 48 }]]);
     const v = views({ frames, items: [item('x', 'a/x.md', 'frame:a')], edges: [], layout });
-    expect(v.frames[0]!.w).toBeGreaterThanOrEqual(2000 + BLOCK_W);
-    expect(v.frames[1]!.w).toBe(FRAME_MIN_W);
+    // The block's place is relative to its area (Product, at the frame's top left).
+    expect(v.frames[0]!.w).toBeGreaterThanOrEqual(FRAME_PAD + 2000 + BLOCK_W);
+    expect(v.frames[1]!.w).toBe(frameSizeFor(MIN_GRID).w);
   });
 
   it('hides gone blocks and lists them', () => {
@@ -53,23 +58,51 @@ describe('views', () => {
     expect(v.blocks.get('x')!.missing).toEqual(['a/z.md', 'later.md']);
   });
 
-  it('file blocks carry the agent colour, the owner side zone, and agreed state from the agreement', () => {
+  it('file blocks carry the agent colour and their area: the owner side, the file, or a person', () => {
+    const items = [
+      item('x', 'a/x.md', 'frame:a', { owner: 'dewi' }),
+      item('f', 'a/f.md', 'frame:a', { owner: 'dewi', area: 'product' }),
+      item('h', 'a/h.md', 'frame:a', { owner: 'dewi' }),
+    ];
+    const devices = new Map([['dewi', { id: 'dewi', name: 'dewi', side: 'engineering' as const }]]);
+    const sides = new Map<string, AreaOverride>([['h', { item: 'h', side: 'product', by: 'raizal', at: 5, fileArea: null }]]);
+    const v = views({ frames, items, edges: [], layout: new Map(), devices, sides });
+    expect(v.blocks.get('x')).toMatchObject({ area: 'engineering', areaSource: 'owner side', agentColor: agentColor('dewi') });
+    expect(v.blocks.get('f')).toMatchObject({ area: 'product', areaSource: 'file' });
+    expect(v.blocks.get('h')).toMatchObject({ area: 'product', areaSource: 'human', areaBy: { name: 'raizal', at: 5 } });
+    expect(v.areaOf.get('x')).toBe('engineering');
+  });
+
+  it('an agreed block stays in its area; its snapshot card is in Agreed; both show a change after the agreement', () => {
     const items = [item('x', 'a/x.md', 'frame:a', { hash: 'h2', owner: 'dewi' }), item('y', 'a/y.md', 'frame:a', { hash: 'h1', owner: 'dewi' })];
     const snap = (hash: string) => ({ text: 'old', hash, type: 'markdown' as const, at: 1 });
     const agreements = new Map<string, Agreement>([
-      ['x', { item: 'x', decision: 'd1', snapshot: snap('h1'), accepts: [] }],
-      ['y', { item: 'y', decision: 'd1', snapshot: snap('h1'), accepts: [] }],
+      ['x', { item: 'x', snapshot: snap('h1'), accepts: [{ name: 'raizal', side: 'product', at: 1 }] }],
+      ['y', { item: 'y', snapshot: snap('h1'), accepts: [{ name: 'raizal', side: 'product', at: 1 }] }],
     ]);
     const devices = new Map([['dewi', { id: 'dewi', name: 'dewi', side: 'engineering' as const }]]);
-    const plain = views({ frames, items, edges: [], layout: new Map(), devices });
-    expect(plain.blocks.get('x')).toMatchObject({ zone: 'engineering', changed: false, agentColor: agentColor('dewi') });
-
     const v = views({ frames, items, edges: [], layout: new Map(), devices, agreements });
-    expect(v.blocks.get('x')).toMatchObject({ zone: 'agreed', changed: true });
-    expect(v.blocks.get('y')).toMatchObject({ zone: 'agreed', changed: false });
+    expect(v.blocks.get('x')).toMatchObject({ area: 'engineering', changed: true });
+    expect(v.blocks.get('y')).toMatchObject({ area: 'engineering', changed: false });
+    expect(v.snapshots.get('snap:x')).toMatchObject({ item: { id: 'x' }, changed: true });
+    expect(v.snapshots.get('snap:y')).toMatchObject({ changed: false });
+    expect(v.areaOf.get('snap:x')).toBe('agreed');
     // Kept against this version: no mark.
     agreements.set('x', { ...agreements.get('x')!, keptHash: 'h2' });
-    expect(views({ frames, items, edges: [], layout: new Map(), agreements }).blocks.get('x')).toMatchObject({ changed: false });
+    const kept = views({ frames, items, edges: [], layout: new Map(), agreements });
+    expect(kept.blocks.get('x')).toMatchObject({ changed: false });
+    expect(kept.snapshots.get('snap:x')).toMatchObject({ changed: false });
+    // A gone file has no snapshot card.
+    expect(views({ frames, items: [{ ...items[0]!, gone: true }], edges: [], layout: new Map(), agreements }).snapshots.size).toBe(0);
+  });
+
+  it('a rejected block is marked "changes requested" until its file changes, then "updated, review again"', () => {
+    const review: Review = { item: 'x', by: 'raizal', at: 1, reason: 'too vague', hash: 'h1' };
+    const reviews = new Map([['x', review]]);
+    const at = (hash: string) => views({ frames, items: [item('x', 'a/x.md', 'frame:a', { hash })], edges: [], layout: new Map(), reviews }).blocks.get('x')!;
+    expect(at('h1')).toMatchObject({ mark: 'changes requested', review });
+    expect(at('h2')).toMatchObject({ mark: 'updated, review again' });
+    expect(views({ frames, items: [item('x', 'a/x.md', 'frame:a')], edges: [], layout: new Map() }).blocks.get('x')!.mark).toBeNull();
   });
 
   it('notes sit in their frame or on their own; a frame grows to hold one', () => {

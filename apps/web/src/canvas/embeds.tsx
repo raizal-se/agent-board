@@ -2,6 +2,7 @@ import { createContext, memo, useContext } from 'react';
 import { DecisionCard } from '../blocks/DecisionCard';
 import { HtmlBlock } from '../blocks/HtmlBlock';
 import { MarkdownBlock } from '../blocks/MarkdownBlock';
+import { SnapshotCard } from '../blocks/SnapshotCard';
 import type { Views } from '../board/derive';
 
 /** What the board shows now. Embedded blocks read their data here by id, so new content needs no new element. */
@@ -17,5 +18,7 @@ export const BlockEmbed = memo(function BlockEmbed({ id }: { id: string }) {
   if (block) return block.item.type === 'html' ? <HtmlBlock data={block} /> : <MarkdownBlock data={block} />;
   const decision = v?.decisions.get(id);
   if (decision) return <DecisionCard data={decision} />;
+  const snapshot = v?.snapshots.get(id);
+  if (snapshot) return <SnapshotCard data={snapshot} />;
   return null;
 });

@@ -11,7 +11,7 @@ export function MarkdownBody({ text }: { text: string }) {
 export const MarkdownBlock = memo(function MarkdownBlock({ data }: { data: BlockData }) {
   return (
     <BlockChrome data={data}>
-      <div className="block-body">
+      <div className="block-text">
         <MarkdownBody text={data.item.text} />
       </div>
     </BlockChrome>

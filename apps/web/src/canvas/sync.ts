@@ -120,7 +120,7 @@ export class BoardSync {
     for (const e of this.api.getSceneElementsIncludingDeleted()) {
       if (e.isDeleted || e.type !== 'embeddable' || !e.link?.startsWith(EMBED_SCHEME) || this.embedded.has(e.id)) continue;
       const kind = kindOf(e);
-      if (kind !== 'file' && kind !== 'decision') continue;
+      if (kind !== 'file' && kind !== 'decision' && kind !== 'snapshot') continue;
       this.embedded.add(e.id);
       added = true;
     }

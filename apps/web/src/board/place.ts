@@ -1,4 +1,4 @@
-import { FRAME_HEADER, isFreeIn, STICKY_H, STICKY_W } from '@agent-board/model';
+import { isFreeIn, STICKY_H, STICKY_W } from '@agent-board/model';
 import type * as Y from 'yjs';
 import type { FrameView } from './derive';
 
@@ -25,13 +25,13 @@ export function noteSpot(doc: Y.Doc, frames: FrameView[], c: Point): { frame: st
   const at = { x: Math.round(c.x - STICKY_W / 2), y: Math.round(c.y - STICKY_H / 2) };
   const f = frameAt(frames, c);
   if (!f) return { frame: null, ...at };
-  const want = { x: Math.max(0, at.x - f.x), y: Math.max(FRAME_HEADER, at.y - f.y) };
+  const want = { x: Math.max(0, at.x - f.x), y: Math.max(0, at.y - f.y) };
   const free = (p: Point) => isFreeIn(doc, f.frame.id, { x: p.x - MARGIN, y: p.y - MARGIN, w: STICKY_W + 2 * MARGIN, h: STICKY_H + 2 * MARGIN });
   if (free(want)) return { frame: f.frame.id, ...want };
   // Every spot on a grid over the frame and a note's size past it; the space below it is always free.
   let best: Point | null = null;
   let bestD = Infinity;
-  for (let y = FRAME_HEADER; y <= f.h + STICKY_H; y += STEP) {
+  for (let y = 0; y <= f.h + STICKY_H; y += STEP) {
     for (let x = 0; x <= f.w + STICKY_W; x += STEP) {
       const d = Math.hypot(x - want.x, y - want.y);
       if (d < bestD && free({ x, y })) {

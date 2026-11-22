@@ -1,5 +1,5 @@
-import { FRAME_HEADER, ZONES, zoneX, type CanvasShape, type Layout } from '@agent-board/model';
-import { sizeIn, type BoardState, type FrameView, type Views } from '../board/derive';
+import { AREAS, snapItemOf, type Area, type CanvasShape, type Layout } from '@agent-board/model';
+import { AREA_START, cardSize, sizeIn, type BoardState, type FrameView, type Views } from '../board/derive';
 import {
   arrowEl,
   arrowGeometry,
@@ -24,20 +24,31 @@ import {
  * the user (an element being dragged, resized or typed in stays as the user has it).
  */
 
-/** Zone tints: soft, so blocks read on top of them. */
-export const ZONE_TINT: Record<string, string> = {
+/** Area tints: soft, so cards read on top of them (design screen "1 · Board — converge"). */
+export const ZONE_TINT: Record<Area, string> = {
   product: 'rgba(37, 99, 235, 0.09)',
   engineering: 'rgba(234, 88, 12, 0.09)',
   agreed: 'rgba(22, 163, 74, 0.10)',
   milestone: 'rgba(109, 40, 217, 0.09)',
 };
+/** Area label colours. */
+export const AREA_INK: Record<Area, string> = {
+  product: '#1E40AF',
+  engineering: '#9A3412',
+  agreed: '#14532D',
+  milestone: '#4C1D95',
+};
+export const MILESTONE_HINT = 'Milestone planning comes later';
+const SNAP_LINK = '#86a98f';
 export const STICKY_BG = '#fff3a8';
 const STICKY_STROKE = '#e3cd5b';
 const BLOCK_STROKE = '#d6d3cc';
 const FRAME_STROKE = '#bbb8b0';
 const STICKY_FONT = 16;
 const LABEL_FONT = 14;
-const ZONE_FONT = 13;
+/** Area labels: small next to the cards, readable when the whole board is in view. */
+const ZONE_FONT = 20;
+const HINT_FONT = 18;
 
 /** Doc-owned kinds that are bound text in a container. */
 const BOUND_TEXT_KINDS = new Set<Kind>(['sticky-text', 'file-edge-label', 'link-label']);
@@ -49,7 +60,8 @@ function boundTextId(local: ReadonlyMap<string, El>, containerId: string): strin
 }
 
 /**
- * What the canvas should show for the doc, in z-order: per frame its zones, labels, blocks, notes
+ * What the canvas should show for the doc, in z-order: per frame its four areas, labels, blocks,
+ * snapshot cards, decisions, notes
  * and then the frame itself (Excalidraw keeps a frame just above its children); then notes outside
  * frames; then arrows and their labels. Arrows go from box to box here; `mergeScene` keeps the
  * geometry the canvas has when neither end moved.
@@ -85,6 +97,14 @@ export function docElements(
       labelIds.set(e.id, labelId);
       bind(e.id, { id: labelId, type: 'text' });
     }
+  }
+  // A thin line from each snapshot card to its live block.
+  const snapLinks: { id: string; from: string; to: string }[] = [];
+  for (const id of v.snapshots.keys()) {
+    const link = { id: `${id}~link`, from: id, to: snapItemOf(id) };
+    snapLinks.push(link);
+    bind(link.from, { id: link.id, type: 'arrow' });
+    bind(link.to, { id: link.id, type: 'arrow' });
   }
   const stickyTextIds = new Map<string, string>();
   for (const { sticky } of v.stickies.values()) {
@@ -139,8 +159,14 @@ export function docElements(
   const out: El[] = [];
   for (const fv of v.frames) {
     const fid = fv.frame.id;
-    const rects = fv.zones;
-    for (const z of ZONES) {
+    const rects = fv.areas;
+    // A card's place is relative to its area.
+    const inArea = (id: string, l: Layout | undefined) => {
+      const r = rects[v.areaOf.get(id) ?? 'product'];
+      const p = l ?? AREA_START;
+      return { x: fv.x + r.x + p.x, y: fv.y + r.y + p.y };
+    };
+    for (const z of AREAS) {
       const r = rects[z];
       out.push(
         base(`${fid}~zone:${z}`, 'rectangle', 'zone', {
@@ -148,7 +174,7 @@ export function docElements(
           y: fv.y + r.y,
           width: r.w,
           height: r.h,
-          backgroundColor: ZONE_TINT[z]!,
+          backgroundColor: ZONE_TINT[z],
           strokeColor: 'transparent',
           strokeWidth: 0,
           roundness: { type: 3 },
@@ -157,30 +183,41 @@ export function docElements(
           customData: { ab: 'zone', zone: z, frame: fid },
         }),
       );
-      const label = textEl(`${fid}~zonelabel:${z}`, 'zone-label', {
-        text: z,
-        x: fv.x + zoneX(z),
-        y: fv.y + FRAME_HEADER + 6,
-        fontSize: ZONE_FONT,
-        measure,
-        color: MUTED,
-        locked: true,
-        frameId: fid,
-        customData: { zone: z, frame: fid },
-      });
-      // An empty zone's strip: the name reads bottom to top, at the top of the strip.
-      // Excalidraw turns an element about its centre, so place the centre and turn.
-      if (r.strip) {
-        const cx = fv.x + r.x + r.w / 2;
-        const cy = fv.y + r.y + 8 + label.width / 2;
-        out.push({ ...label, x: cx - label.width / 2, y: cy - label.height / 2, angle: (3 * Math.PI) / 2 } as El);
-      } else out.push(label);
+      out.push(
+        textEl(`${fid}~zonelabel:${z}`, 'zone-label', {
+          text: z.toUpperCase(),
+          x: fv.x + r.x + 24,
+          y: fv.y + r.y + 20,
+          fontSize: ZONE_FONT,
+          measure,
+          color: AREA_INK[z],
+          locked: true,
+          frameId: fid,
+          customData: { zone: z, frame: fid },
+        }),
+      );
+      if (z === 'milestone') {
+        const hint = textEl(`${fid}~zonehint:${z}`, 'zone-label', {
+          text: MILESTONE_HINT,
+          x: 0,
+          y: 0,
+          fontSize: HINT_FONT,
+          measure,
+          color: MUTED,
+          locked: true,
+          frameId: fid,
+          customData: { zone: z, frame: fid, hint: true },
+        });
+        hint.x = fv.x + r.x + (r.w - hint.width) / 2;
+        hint.y = fv.y + r.y + (r.h - hint.height) / 2;
+        out.push(hint);
+      }
     }
     for (const [id, b] of v.blocks) {
       if (b.item.frame !== fid) continue;
       const l = state.layout.get(id);
-      const p = at(l, fid);
-      const size = sizeIn(l, 'file');
+      const p = inArea(id, l);
+      const size = cardSize(l, b.item);
       boxes.set(id, { ...p, ...size });
       out.push(
         base(id, 'embeddable', 'file', {
@@ -198,16 +235,38 @@ export function docElements(
             path: b.item.path,
             owner: b.item.owner,
             state: b.agreement ? 'agreed' : 'draft',
-            zone: b.zone,
+            area: b.area,
+            areaSource: b.areaSource,
+            mark: b.mark,
             changed: b.changed,
           },
+        }),
+      );
+    }
+    for (const [id, sn] of v.snapshots) {
+      if (sn.item.frame !== fid) continue;
+      const l = state.layout.get(id);
+      const p = inArea(id, l);
+      const size = cardSize(l, sn.agreement.snapshot);
+      boxes.set(id, { ...p, ...size });
+      out.push(
+        base(id, 'embeddable', 'snapshot', {
+          ...p,
+          width: size.w,
+          height: size.h,
+          strokeColor: BLOCK_STROKE,
+          backgroundColor: '#ffffff',
+          link: embedded.has(id) ? null : embedLink(id),
+          frameId: fid,
+          boundElements: refs(id),
+          customData: { ab: 'snapshot', id, item: sn.item.id, path: sn.item.path, changed: sn.changed },
         }),
       );
     }
     for (const [id, d] of v.decisions) {
       if (d.decision.frame !== fid) continue;
       const l = state.layout.get(id);
-      const p = at(l, fid);
+      const p = inArea(id, l);
       const size = sizeIn(l, 'decision');
       boxes.set(id, { ...p, ...size });
       out.push(
@@ -238,6 +297,14 @@ export function docElements(
     );
   }
   out.push(...stickyEls(null));
+
+  for (const k of snapLinks) {
+    const a = boxes.get(k.from);
+    const b = boxes.get(k.to);
+    if (!a || !b) continue;
+    const arrow = arrowEl(k.id, 'snapshot-link', { from: k.from, to: k.to, a, b, dashed: true, locked: true, customData: { id: k.from } });
+    out.push({ ...arrow, strokeColor: SNAP_LINK, strokeWidth: 1, strokeStyle: 'dashed', endArrowhead: null, boundElements: null });
+  }
 
   const labels: El[] = [];
   for (const e of v.edges) {

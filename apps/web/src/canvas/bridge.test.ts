@@ -1,5 +1,6 @@
 import {
   agreementsMap,
+  sidesMap,
   boardMap,
   canvasMap,
   createBoardDoc,
@@ -9,10 +10,13 @@ import {
   itemsMap,
   layoutMap,
   addSticky,
+  AREA_MIN_W,
+  AREA_TOP,
+  BLOCK_H,
   BLOCK_W,
   FRAME_PAD,
-  ZONE_STRIP,
-  zoneX,
+  frameSizeFor,
+  MIN_GRID,
   type FileItem,
   type Layout,
 } from '@agent-board/model';
@@ -27,7 +31,12 @@ function file(id: string, path: string, frame: string, extra: Partial<FileItem> 
   return { id, kind: 'file', path, frame, type: 'markdown', text: `# ${path}`, hash: 'h1', owner: 'ana', gone: false, updatedAt: 0, ...extra };
 }
 
-/** A board with frame a (at 0,0) and b (at 2000,0); blocks x, y in a and z in b; a file link x -> y. */
+/**
+ * A board with frame a (at 0,0) and b (at 4000,0); blocks x, y in a and z in b; a file link x -> y.
+ * The owner has no device, so the blocks are in Product: a card's place is relative to its area,
+ * and Product's top left is (FRAME_PAD, FRAME_PAD) in its frame.
+ */
+const O = FRAME_PAD;
 function board(): Y.Doc {
   const doc = createBoardDoc();
   doc.transact(() => {
@@ -36,7 +45,7 @@ function board(): Y.Doc {
     framesMap(doc).set('frame:b', { id: 'frame:b', name: 'b' });
     const l = layoutMap(doc);
     l.set('frame:a', { x: 0, y: 0 });
-    l.set('frame:b', { x: 2000, y: 0 });
+    l.set('frame:b', { x: 4000, y: 0 });
     const items = itemsMap(doc);
     items.set('x', file('x', 'a/x.md', 'frame:a'));
     items.set('y', file('y', 'a/y.md', 'frame:a'));
@@ -94,15 +103,15 @@ afterEach(() => {
 const layoutOf = (id: string): Layout | undefined => layoutMap(doc).get(id);
 
 describe('doc to elements', () => {
-  it('draws frames, zones, file blocks and a file link bound to both blocks', () => {
+  it('draws frames, areas, file blocks and a file link bound to both blocks', () => {
     const a = canvas.get('frame:a');
     expect(a).toMatchObject({ type: 'frame', x: 0, y: 0, name: 'a', roughness: 0 });
     expect(canvas.get('frame:a~zone:product')).toMatchObject({ type: 'rectangle', locked: true, frameId: 'frame:a' });
 
     const x = canvas.get('x');
-    expect(x).toMatchObject({ type: 'embeddable', x: 32, y: 76, link: 'agent-board:x', frameId: 'frame:a' });
-    expect(x.customData).toMatchObject({ ab: 'file', id: 'x', path: 'a/x.md', owner: 'ana', state: 'draft' });
-    expect(canvas.get('z')).toMatchObject({ x: 2032, y: 76, frameId: 'frame:b' });
+    expect(x).toMatchObject({ type: 'embeddable', x: O + 32, y: O + 76, link: 'agent-board:x', frameId: 'frame:a' });
+    expect(x.customData).toMatchObject({ ab: 'file', id: 'x', path: 'a/x.md', owner: 'ana', state: 'draft', area: 'product', areaSource: 'owner side', mark: null });
+    expect(canvas.get('z')).toMatchObject({ x: 4000 + O + 32, y: O + 76, frameId: 'frame:b' });
 
     const arrow = canvas.get('fe:x->a/y.md#');
     expect(arrow).toMatchObject({ type: 'arrow', locked: true, strokeStyle: 'dotted', startBinding: { elementId: 'x' }, endBinding: { elementId: 'y' } });
@@ -110,20 +119,29 @@ describe('doc to elements', () => {
     expect(canvas.get('fe:x->a/y.md#~label')).toMatchObject({ type: 'text', originalText: 'uses', containerId: 'fe:x->a/y.md#' });
   });
 
-  it('draws the zones in use as full columns and the empty ones after them as thin strips with turned names', () => {
-    // Frame a has blocks in product and engineering; frame b only in product.
-    for (const z of ['product', 'engineering']) expect(canvas.get(`frame:a~zone:${z}`).width).toBe(BLOCK_W + 24);
-    for (const z of ['agreed', 'milestone']) {
-      expect(canvas.get(`frame:a~zone:${z}`).width).toBe(ZONE_STRIP - 8);
-      expect(canvas.get(`frame:a~zonelabel:${z}`).angle).toBeCloseTo((3 * Math.PI) / 2);
-    }
-    expect(canvas.get('frame:a~zonelabel:engineering').angle).toBe(0);
-    expect(canvas.get('frame:b~zone:engineering').width).toBe(ZONE_STRIP - 8);
-    // The strips sit inside the frame, which is no wider than it needs to be.
+  it('splits each frame 2×2 into four areas, big from the start, each with its label; Milestone has a hint', () => {
     const a = canvas.get('frame:a');
-    const m = canvas.get('frame:a~zone:milestone');
-    expect(m.x + m.width).toBeLessThanOrEqual(a.x + a.width);
-    expect(a.width).toBe(zoneX('engineering') + BLOCK_W + FRAME_PAD + 2 * ZONE_STRIP);
+    const r = (z: string) => canvas.get(`frame:a~zone:${z}`);
+    expect(r('product')).toMatchObject({ x: O, y: O, width: AREA_MIN_W });
+    expect(r('engineering').x).toBeGreaterThan(r('product').x + r('product').width);
+    expect(r('engineering').y).toBe(r('product').y);
+    expect(r('agreed').x).toBe(r('product').x);
+    expect(r('agreed').y).toBeGreaterThan(r('product').y + r('product').height);
+    expect(r('milestone')).toMatchObject({ x: r('engineering').x, y: r('agreed').y });
+    expect(r('milestone').x + r('milestone').width).toBeLessThan(a.x + a.width);
+    expect(a.width).toBe(frameSizeFor(MIN_GRID).w);
+    for (const z of ['product', 'engineering', 'agreed', 'milestone']) {
+      expect(canvas.get(`frame:a~zonelabel:${z}`)).toMatchObject({ type: 'text', originalText: z.toUpperCase(), locked: true });
+    }
+    expect(canvas.get('frame:a~zonehint:milestone').originalText).toBe('Milestone planning comes later');
+  });
+
+  it('an area grows with what is in it, and the areas beside and below it move with it', () => {
+    const before = canvas.get('frame:a~zone:engineering').x;
+    layoutMap(doc).set('y', { x: AREA_MIN_W + 200, y: AREA_TOP, w: BLOCK_W, h: BLOCK_H });
+    vi.runAllTimers();
+    expect(canvas.get('frame:a~zone:product').width).toBeGreaterThanOrEqual(AREA_MIN_W + 200 + BLOCK_W);
+    expect(canvas.get('frame:a~zone:engineering').x).toBeGreaterThan(before);
   });
 
   it('puts each frame just above its children', () => {
@@ -134,7 +152,7 @@ describe('doc to elements', () => {
 
   it('updates only the elements that changed', () => {
     const before = new Map(canvas.scene.map((e) => [e.id, e]));
-    layoutMap(doc).set('y', { x: 404, y: 600 });
+    layoutMap(doc).set('y', { x: 404, y: 2000 });
     vi.runAllTimers();
     const changed = canvas.scene.filter((e) => before.get(e.id) !== e).map((e) => e.id).sort();
     // y, the frame that grew to hold it, its zones (taller), the arrow and its label.
@@ -164,7 +182,7 @@ describe('a scene replaced under the bridge', () => {
     fresh.app = { selectedElementIds: {} };
     s.changed();
     vi.runAllTimers();
-    expect(fresh.get('x')).toMatchObject({ type: 'embeddable', x: 32, y: 76 });
+    expect(fresh.get('x')).toMatchObject({ type: 'embeddable', x: O + 32, y: O + 76 });
     s.stop();
   });
 
@@ -189,18 +207,36 @@ describe('a scene replaced under the bridge', () => {
 });
 
 describe('elements to doc', () => {
-  it('writes a moved block relative to its frame, and a moved frame', () => {
+  it('writes a moved block relative to its area, and a moved frame', () => {
+    const x = canvas.get('x');
     canvas.edit('x', { x: 100, y: 300 });
-    canvas.edit('frame:b', { x: 2500, y: 40 });
+    canvas.edit('frame:b', { x: 4500, y: 40 });
     sync.flush();
-    expect(layoutOf('x')).toEqual({ x: 100, y: 300 });
-    expect(layoutOf('frame:b')).toEqual({ x: 2500, y: 40 });
+    expect(layoutOf('x')).toEqual({ x: 100 - O, y: 300 - O, w: x.width, h: x.height });
+    expect(layoutOf('frame:b')).toEqual({ x: 4500, y: 40 });
   });
 
   it('writes a resized block with its size', () => {
     canvas.edit('x', { width: 500, height: 420 });
     sync.flush();
     expect(layoutOf('x')).toEqual({ x: 32, y: 76, w: 500, h: 420 });
+  });
+
+  it('a card is kept between 480 and 560 wide', () => {
+    canvas.edit('x', { width: 300 });
+    sync.flush();
+    expect(layoutOf('x')?.w).toBe(480);
+    canvas.edit('x', { width: 900 });
+    sync.flush();
+    expect(layoutOf('x')?.w).toBe(560);
+  });
+
+  it('a card dropped in the other side\'s area moves there: a person\'s switch, kept with who and when', () => {
+    const eng = canvas.get('frame:a~zone:engineering');
+    canvas.edit('x', { x: eng.x + 100, y: eng.y + 100 });
+    sync.flush();
+    expect(sidesMap(doc).get('x')).toMatchObject({ side: 'engineering', by: 'ana', fileArea: null });
+    expect(layoutOf('x')).toMatchObject({ x: 100, y: 100 });
   });
 
   it('a drawn arrow between two blocks becomes a link, with its label', () => {
@@ -289,7 +325,7 @@ describe('no echo', () => {
     canvas.edit('x', { x: 120 });
     sync.changed();
     vi.runAllTimers();
-    expect(layoutOf('x')).toMatchObject({ x: 120 });
+    expect(layoutOf('x')).toMatchObject({ x: 120 - O });
     const after = updates;
     const pushes = sync.pushes;
     vi.runAllTimers();
@@ -352,7 +388,7 @@ describe('locked file items', () => {
     expect([...canvasMap(doc).keys()]).toEqual([]);
     sync.run();
     expect(canvas.scene.some((e) => e.id.startsWith('copy-of-') && !e.isDeleted)).toBe(false);
-    expect(canvas.get('x')).toMatchObject({ x: 32, y: 76 });
+    expect(canvas.get('x')).toMatchObject({ x: O + 32, y: O + 76 });
   });
 
   it('a changed block link is put back', () => {
@@ -390,7 +426,7 @@ describe('a drag during a file update', () => {
   it('leaves the dragged block where the user has it, and moves the rest', () => {
     sync.pointer(true);
     canvas.app = { selectedElementIds: { x: true }, selectedElementsAreBeingDragged: true };
-    const dragged = canvas.edit('x', { x: 700, y: 500 });
+    const dragged = canvas.edit('x', { x: O + 700, y: O + 500 });
 
     // The file is saved and another device moves y.
     doc.transact(() => {
@@ -399,22 +435,22 @@ describe('a drag during a file update', () => {
     });
     vi.runAllTimers();
     expect(canvas.get('x')).toBe(dragged);
-    expect(canvas.get('y')).toMatchObject({ x: 404, y: 400 });
+    expect(canvas.get('y')).toMatchObject({ x: O + 404, y: O + 400 });
     // Nothing went to the doc while the pointer is down.
     expect(layoutOf('x')).toEqual({ x: 32, y: 76 });
 
     canvas.app = { selectedElementIds: { x: true } };
     sync.pointer(false);
     vi.runAllTimers();
-    expect(layoutOf('x')).toEqual({ x: 700, y: 500 });
-    expect(canvas.get('x')).toMatchObject({ x: 700, y: 500 });
+    expect(layoutOf('x')).toMatchObject({ x: 700, y: 500 });
+    expect(canvas.get('x')).toMatchObject({ x: O + 700, y: O + 500 });
   });
 
   it('keeps the children of a dragged frame', () => {
     sync.pointer(true);
     canvas.app = { selectedElementIds: { 'frame:a': true }, selectedElementsAreBeingDragged: true };
     canvas.edit('frame:a', { x: 300 });
-    const x = canvas.edit('x', { x: 332 });
+    const x = canvas.edit('x', { x: 300 + O + 32 });
     layoutMap(doc).set('x', { x: 40, y: 76 });
     vi.runAllTimers();
     expect(canvas.get('x')).toBe(x);

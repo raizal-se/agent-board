@@ -1,9 +1,14 @@
 import {
   addHumanEdge,
   addSticky,
-  agree,
+  agreeItem,
+  BLOCK_W,
   deleteHumanEdge,
+  isSnapId,
+  layoutMap,
+  rejectItem,
   setEdgeLabel,
+  switchArea,
   type FileItem,
   type Person,
 } from '@agent-board/model';
@@ -36,7 +41,7 @@ function useStatus(conn: BoardConnection): ConnectionStatus {
 
 type Ask =
   | { kind: 'link'; from: string; to: string }
-  | { kind: 'agree'; covers: string[] }
+  | { kind: 'reject'; item: string }
   | { kind: 'label'; edge: string; initial: string };
 
 const NONE: Selection = { items: [], link: null };
@@ -66,6 +71,14 @@ export function App({ conn }: { conn: BoardConnection }) {
       openThread: (target) => setThreadOn(target),
       compare: (itemId) => setCompareId(itemId),
       selectEdge: (id) => viewport?.select([id]),
+      agree: (itemId) => agreeItem(doc, itemId, { by: me }),
+      reject: (itemId) => setAsk({ kind: 'reject', item: itemId }),
+      switchArea: (itemId, side) => switchArea(doc, itemId, side, { by: me }),
+      fitHeight: (layoutId, h) => {
+        const layout = layoutMap(doc);
+        const l = layout.get(layoutId);
+        if (l && l.h !== h) layout.set(layoutId, { ...l, w: l.w ?? BLOCK_W, h });
+      },
     }),
     [doc, me, viewport],
   );
@@ -81,8 +94,10 @@ export function App({ conn }: { conn: BoardConnection }) {
   const byId = useMemo(() => {
     const m = new Map<string, Parameters<typeof nameOf>[0]>();
     for (const i of [...state.items, ...state.stickies, ...state.decisions]) m.set(i.id, i);
+    // A snapshot card stands for its file: its comments and "open" are the file's.
+    for (const s of v.snapshots.values()) m.set(s.id, s.item);
     return m;
-  }, [state]);
+  }, [state, v.snapshots]);
 
   const openItem = openId ? state.items.find((i) => i.id === openId) : undefined;
   const compareItem = compareId ? state.items.find((i) => i.id === compareId) : undefined;
@@ -95,10 +110,9 @@ export function App({ conn }: { conn: BoardConnection }) {
 
   // What the selection bar offers.
   const pickedItems = sel.items.map((id) => byId.get(id)).filter((i) => !!i);
+  const label = (id: string) => (isSnapId(id) ? `snapshot of ${nameOf(byId.get(id)!)}` : nameOf(byId.get(id)!));
   const one = pickedItems.length === 1 ? pickedItems[0] : undefined;
   const canLink = pickedItems.length === 2;
-  const files = pickedItems.filter((i) => i.kind === 'file');
-  const canAgree = files.length > 0 && files.length === pickedItems.length && files.every((f) => f.frame === files[0]!.frame);
   const oneBlock = one?.kind === 'file' ? v.blocks.get(one.id) : undefined;
   const onePin = one ? (v.blocks.get(one.id) ?? v.decisions.get(one.id) ?? v.stickies.get(one.id))?.pin : undefined;
 
@@ -125,7 +139,7 @@ export function App({ conn }: { conn: BoardConnection }) {
         </>
       ) : (
         <>
-          <span className="selection-count">{one ? nameOf(one) : `${pickedItems.length} selected`}</span>
+          <span className="selection-count">{one ? label(sel.items[0]!) : `${pickedItems.length} selected`}</span>
           {one?.kind === 'file' && (
             <button type="button" className="btn" onClick={() => setOpenId(one.id)}>
               Open
@@ -144,11 +158,6 @@ export function App({ conn }: { conn: BoardConnection }) {
           {canLink && (
             <button type="button" className="btn" onClick={() => setAsk({ kind: 'link', from: pickedItems[0]!.id, to: pickedItems[1]!.id })}>
               Link
-            </button>
-          )}
-          {canAgree && (
-            <button type="button" className="btn btn-agree" onClick={() => setAsk({ kind: 'agree', covers: files.map((f) => f.id) })}>
-              Agree
             </button>
           )}
         </>
@@ -208,18 +217,16 @@ export function App({ conn }: { conn: BoardConnection }) {
             }}
           />
         )}
-        {ask?.kind === 'agree' && (
+        {ask?.kind === 'reject' && (
           <TextDialog
-            title={`Agree on ${ask.covers.length} block${ask.covers.length === 1 ? '' : 's'}`}
-            label="What is agreed"
-            submit="Agree"
+            title={`Reject ${byId.get(ask.item) ? nameOf(byId.get(ask.item)!) : 'block'}`}
+            label="What needs to change (required)"
+            submit="Reject"
             multiline
             required
             onCancel={() => setAsk(null)}
-            onSubmit={(text) => {
-              agree(doc, { text, covers: ask.covers, by: me });
-              setAsk(null);
-              clearSelection();
+            onSubmit={(reason) => {
+              if (rejectItem(doc, ask.item, { by: me, reason })) setAsk(null);
             }}
           />
         )}

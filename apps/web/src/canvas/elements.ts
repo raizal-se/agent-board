@@ -12,6 +12,8 @@ export type Kind =
   | 'zone-label'
   | 'file'
   | 'decision'
+  | 'snapshot'
+  | 'snapshot-link'
   | 'sticky'
   | 'sticky-text'
   | 'file-edge'

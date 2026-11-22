@@ -16,7 +16,13 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 .block-name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .block-open { font: inherit; font-size: 12px; border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 0 10px; min-height: 32px; min-width: 44px; cursor: pointer; }
 .block-open:hover { border-color: var(--accent); color: var(--accent); }
-.block-body { flex: 1; overflow: auto; padding: 8px 12px; }
+.card-body-wrap { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
+.card-body { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; }
+.card-content { display: flow-root; }
+.block-text { padding: 10px 16px 14px; font-size: 14px; }
+/* Past the cap the content scrolls inside the card: a fade says there is more, "open" shows it all. */
+.card-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 96px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 10px; background: linear-gradient(rgb(255 255 255 / 0%), #fff 70%); pointer-events: none; }
+.card-fade-open { font: inherit; font-weight: 600; min-height: 32px; min-width: 64px; padding: 0 14px; border: 1px solid var(--line); border-radius: 16px; background: #fff; cursor: pointer; pointer-events: auto; box-shadow: 0 1px 3px rgb(0 0 0 / 10%); }
 .block-missing { padding: 4px 8px; border-top: 1px dashed var(--line); color: var(--danger); font-size: 11px; background: #fff8f6; }
 
 .markdown-body { overflow-wrap: anywhere; }
@@ -33,10 +39,9 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 .mermaid-error-message { color: var(--danger); font-weight: 600; margin-bottom: 4px; }
 .mermaid-error-source { margin: 0; white-space: pre-wrap; font-size: 12px; background: none; padding: 0; }
 
-.html-thumb { overflow: hidden; position: relative; background: #eee; flex: none; }
+.html-thumb { max-width: 100%; overflow: hidden; position: relative; background: #eee; flex: none; }
 .html-thumb iframe { border: 0; pointer-events: none; transform-origin: 0 0; background: #fff; }
 .html-placeholder { display: grid; place-items: center; height: 100%; color: var(--muted); }
-.html-path { padding: 6px 8px; color: var(--muted); font-size: 11px; flex: 1; }
 
 
 .hidden-list { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; max-width: 360px; }
@@ -72,9 +77,28 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 .block-meta { display: flex; gap: 6px; align-items: center; padding: 3px 8px; border-bottom: 1px solid var(--line); font-size: 11px; color: var(--muted); }
 .agent-mark { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: var(--agent); }
 .agent-dot { width: 8px; height: 8px; border-radius: 2px; background: var(--agent); transform: rotate(45deg); }
-.zone-tag { border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
-.block.zone-product .zone-tag { color: #1E40AF; } .block.zone-engineering .zone-tag { color: #9A3412; } .block.zone-agreed .zone-tag { color: #14532D; }
-.agreed-badge { margin-left: auto; background: #16A34A; color: #fff; font-weight: 700; border-radius: 4px; padding: 0 6px; text-transform: uppercase; font-size: 10px; letter-spacing: 0.04em; }
+.block-title .agent-mark { font-size: 11px; white-space: nowrap; }
+/* The card's actions: area switch, agree, reject, comments. Each a tap target of 32 px. */
+.block-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.area-switch { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-right: auto; }
+.area-option { font: inherit; font-size: 12px; min-height: 32px; padding: 0 10px; border: 0; background: #fff; color: var(--muted); cursor: pointer; }
+.area-option + .area-option { border-left: 1px solid var(--line); }
+.area-option-product[aria-pressed="true"] { background: rgba(37,99,235,0.12); color: #1E40AF; font-weight: 700; }
+.area-option-engineering[aria-pressed="true"] { background: rgba(234,88,12,0.12); color: #9A3412; font-weight: 700; }
+.card-btn { font: inherit; font-size: 12px; font-weight: 600; min-height: 32px; min-width: 44px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; white-space: nowrap; }
+.card-agree { color: #15803D; border-color: #86EFAC; }
+.card-agree:hover:not(:disabled) { background: #16A34A; border-color: #16A34A; color: #fff; }
+.card-agree:disabled { background: #DCFCE7; cursor: default; }
+.card-reject { color: var(--danger); border-color: #F5C2BE; }
+.card-reject:hover { background: #FEF2F2; }
+.review-mark { font-weight: 700; border-radius: 4px; padding: 1px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.review-requested { background: #FEE2E2; color: #991B1B; }
+.review-updated { background: #FEF3C7; color: #78350F; }
+.block[data-mark="changes requested"] { box-shadow: 0 0 0 2px rgb(220 38 38 / 45%), 0 1px 2px rgb(0 0 0 / 6%); }
+/* The frozen copy of an agreed block, in Agreed. */
+.block.snapshot { border-left-color: #16A34A; background: #FBFEFC; }
+.snapshot-meta { color: #14532D; }
+.agreed-badge { background: #16A34A; color: #fff; font-weight: 700; border-radius: 4px; padding: 0 6px; text-transform: uppercase; font-size: 10px; letter-spacing: 0.04em; }
 .block[data-state="agreed"] { box-shadow: 0 0 0 2px rgb(22 163 74 / 35%), 0 1px 2px rgb(0 0 0 / 6%); }
 .changed-mark { display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: #FEF3C7; color: #78350F; font-weight: 600; font-size: 12px; border-bottom: 1px solid #FCD34D; }
 .changed-mark span { flex: 1; }
@@ -84,6 +108,8 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 .comment-pin { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 32px; min-height: 32px; padding: 0 6px; border: 1px solid var(--line); border-radius: 16px; background: #fff; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
 .comment-pin.pin-open { background: #FDE68A; border-color: #F59E0B; color: #78350F; font-weight: 700; }
 .comment-pin.pin-resolved { color: #15803D; border-color: #86EFAC; }
+.comment-agree .comment-text { color: #15803D; font-weight: 600; }
+.comment-reject .comment-text { color: #991B1B; font-weight: 600; }
 
 /* Decisions: made by people when they agree. */
 .decision { width: 100%; height: 100%; display: flex; flex-direction: column; gap: 4px; background: #fff; border: 2px solid #16A34A; border-radius: 8px; padding: 6px 10px 8px; box-shadow: 0 1px 3px rgb(0 0 0 / 8%); }
@@ -153,4 +179,7 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
    and drags it); the block's own buttons take theirs. */
 .excalidraw__embeddable-container .block-open,
 .excalidraw__embeddable-container .comment-pin,
+.excalidraw__embeddable-container .area-option,
+.excalidraw__embeddable-container .card-btn,
+.excalidraw__embeddable-container .card-fade-open,
 .excalidraw__embeddable-container .changed-mark button { pointer-events: auto; }

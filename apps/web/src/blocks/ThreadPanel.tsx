@@ -1,4 +1,4 @@
-import { addComment, setThreadResolved, type CommentItem, type ThreadItem } from '@agent-board/model';
+import { addComment, entryText, setThreadResolved, type CommentItem, type ThreadItem } from '@agent-board/model';
 import { useEffect, useRef, useState } from 'react';
 import { useBoardActions } from '../board/actions';
 import { shortTime } from './DecisionCard';
@@ -64,11 +64,11 @@ export function ThreadPanel({
       <ol className="thread-list" ref={listRef}>
         {comments.length === 0 && <li className="thread-empty">No comments yet.</li>}
         {comments.map((c) => (
-          <li key={c.id} className="comment" data-testid="comment">
+          <li key={c.id} className={`comment${c.verdict ? ` comment-${c.verdict}` : ''}`} data-testid="comment" data-verdict={c.verdict ?? 'none'}>
             <div className="comment-meta">
               <strong>{c.author}</strong> <time dateTime={new Date(c.at).toISOString()}>{shortTime(c.at)}</time>
             </div>
-            <div className="comment-text">{c.text}</div>
+            <div className="comment-text">{entryText(c)}</div>
           </li>
         ))}
       </ol>

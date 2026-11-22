@@ -1,4 +1,4 @@
-import { agreeAgain, changedAfterAgreement, keepSnapshot, lineDiff, type Agreement, type FileItem } from '@agent-board/model';
+import { agreeItem, changedAfterAgreement, keepSnapshot, lineDiff, type Agreement, type FileItem } from '@agent-board/model';
 import { useEffect, useMemo } from 'react';
 import { useBoardActions } from '../board/actions';
 import { shortTime } from './DecisionCard';
@@ -66,7 +66,7 @@ export function CompareView({ item, agreement, onClose }: { item: FileItem; agre
             type="button"
             className="btn btn-primary"
             onClick={() => {
-              agreeAgain(doc, item.id, { by: me });
+              agreeItem(doc, item.id, { by: me });
               onClose();
             }}
           >

@@ -3,9 +3,11 @@ import {
   canvasMap,
   deleteHumanEdge,
   deleteSticky,
+  areaOf,
   edgesMap,
-  FRAME_HEADER,
+  fileItemOf,
   framesMap,
+  isSnapId,
   isHumanEdge,
   isSticky,
   itemsMap,
@@ -13,6 +15,8 @@ import {
   moveSticky,
   setEdgeLabel,
   setStickyText,
+  sidesMap,
+  snapItemOf,
   type CanvasShape,
   type Layout,
   type Person,
@@ -25,6 +29,22 @@ import { kindOf, type El } from './elements';
 export const CANVAS_ORIGIN = Symbol('canvas');
 
 const bindingId = (b: unknown) => (b && typeof b === 'object' ? ((b as { elementId?: string }).elementId ?? null) : null);
+
+/** A card is between these widths: wide enough to read, narrow enough to sit beside another. */
+export const CARD_MIN_W = 480;
+export const CARD_MAX_W = 560;
+
+/** A card's place and size: always both, since a card's height follows its content. */
+function cardPlaced(old: Layout | undefined, x: number, y: number, w: number, h: number): Layout {
+  const width = Math.min(CARD_MAX_W, Math.max(CARD_MIN_W, Math.round(w)));
+  return { ...old, x: Math.round(x), y: Math.round(y), w: width, h: Math.round(h) };
+}
+
+const centreIn = (el: El, z: El) => {
+  const cx = el.x + el.width / 2;
+  const cy = el.y + el.height / 2;
+  return cx >= z.x && cx <= z.x + z.width && cy >= z.y && cy <= z.y + z.height;
+};
 
 /** Layout with a new place and size; the size is left out while it is the default. */
 function placed(old: Layout | undefined, x: number, y: number, w: number, h: number, dflt: { w: number; h: number }): Layout {
@@ -93,14 +113,35 @@ export function writeScene(doc: Y.Doc, elements: readonly El[], seen: Map<string
           break;
         }
         case 'file':
+        case 'snapshot':
         case 'decision': {
-          const item = items.get(el.id);
-          if (el.isDeleted || !item || !('frame' in item) || !item.frame) break;
-          const frameEl = byId.get(item.frame);
-          if (!frameEl) break;
-          const x = Math.max(0, el.x - frameEl.x);
-          const y = Math.max(FRAME_HEADER, el.y - frameEl.y);
-          setLayout(el.id, placed(layout.get(el.id), x, y, el.width, el.height, sizeIn(undefined, kind)));
+          if (el.isDeleted) break;
+          // A card's place is relative to its area (see derive.ts): a file block's side, Agreed for the rest.
+          const itemId = kind === 'snapshot' ? snapItemOf(el.id) : el.id;
+          const item = items.get(itemId);
+          if (!item || !('frame' in item) || !item.frame) break;
+          if (kind === 'snapshot' && !isSnapId(el.id)) break;
+          const zone = (a: string) => byId.get(`${item.frame}~zone:${a}`);
+          let area = 'agreed';
+          if (kind === 'file') {
+            const f = fileItemOf(doc, itemId);
+            if (!f) break;
+            area = areaOf(doc, f).area;
+            // Dropped in the other side's area: a person's switch, with who and when.
+            const other = area === 'product' ? 'engineering' : 'product';
+            const oz = zone(other);
+            if (oz && !oz.isDeleted && centreIn(el, oz) && !centreIn(el, zone(area) ?? oz)) {
+              sidesMap(doc).set(itemId, { item: itemId, side: other, by: me.name, at: Date.now(), fileArea: f.area ?? null });
+              writes++;
+              area = other;
+            }
+          }
+          const z = zone(area);
+          if (!z) break;
+          const x = Math.max(0, el.x - z.x);
+          const y = Math.max(0, el.y - z.y);
+          const next = kind === 'decision' ? placed(layout.get(el.id), x, y, el.width, el.height, sizeIn(undefined, 'decision')) : cardPlaced(layout.get(el.id), x, y, el.width, el.height);
+          setLayout(el.id, next);
           break;
         }
         case 'sticky': {
@@ -139,6 +180,7 @@ export function writeScene(doc: Y.Doc, elements: readonly El[], seen: Map<string
         }
         case 'file-edge':
         case 'file-edge-label':
+        case 'snapshot-link':
         case 'zone':
         case 'zone-label':
           break;

@@ -66,10 +66,10 @@ const validateEmbeddable = (link: string) => link.startsWith(EMBED_SCHEME);
 
 const renderEmbeddable = (el: NonDeleted<ExcalidrawEmbeddableElement>) => {
   const kind = kindOf(el as unknown as El);
-  return kind === 'file' || kind === 'decision' ? <BlockEmbed id={el.id} /> : null;
+  return kind === 'file' || kind === 'decision' || kind === 'snapshot' ? <BlockEmbed id={el.id} /> : null;
 };
 
-const BOARD_KINDS = new Set(['file', 'decision', 'sticky']);
+const BOARD_KINDS = new Set(['file', 'decision', 'snapshot', 'sticky']);
 
 
 /** Shows the whole board, from the top: on a phone it fills the width instead of sitting mid-screen. */
