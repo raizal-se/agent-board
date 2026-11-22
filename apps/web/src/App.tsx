@@ -130,6 +130,7 @@ function Board({ conn }: { conn: BoardConnection }) {
   }, [measured, nodes.length, rf]);
 
   // "Select several" (for touch screens): each tap adds to the selection, as Ctrl/Cmd+click does.
+  // While it is on, the Ctrl/Cmd key is not watched, so releasing it cannot switch this off.
   useEffect(() => {
     storeApi.optionsStore.setState({ multiSelectionActive: several });
   }, [several, storeApi]);
@@ -138,6 +139,8 @@ function Board({ conn }: { conn: BoardConnection }) {
 
   const onSelectionChange: OnSelectionChangeFunc<BoardNode> = useCallback(({ nodes: sel }) => {
     const ids = sel.filter((n) => n.type !== 'frame').map((n) => n.id);
+    // Picking items puts the link selection away, so the bar shows what fits the items.
+    if (ids.length > 0) setEdgeId(null);
     setPicked((prev) => [...prev.filter((id) => ids.includes(id)), ...ids.filter((id) => !prev.includes(id))]);
   }, []);
 
@@ -226,7 +229,8 @@ function Board({ conn }: { conn: BoardConnection }) {
   const compareItem = compareId ? state.items.find((i) => i.id === compareId) : undefined;
   const compareAgreement = compareId ? state.agreements.get(compareId) : undefined;
   const threadTarget = threadOn ? byId.get(threadOn) : undefined;
-  const selectedEdge = edgeId ? state.humanEdges.find((e) => e.id === edgeId) : undefined;
+  // Only a link that is drawn: a link whose end was deleted is not on the board.
+  const selectedEdge = edgeId && derived.edges.some((e) => e.id === edgeId) ? state.humanEdges.find((e) => e.id === edgeId) : undefined;
   const close = useCallback(() => setOpenId(null), []);
   const closeThread = useCallback(() => setThreadOn(null), []);
   const closeCompare = useCallback(() => setCompareId(null), []);
@@ -255,7 +259,7 @@ function Board({ conn }: { conn: BoardConnection }) {
         onPaneClick={() => setEdgeId(null)}
         onDoubleClick={onDoubleClick}
         zoomOnDoubleClick={false}
-        multiSelectionKeyCode={['Meta', 'Control']}
+        multiSelectionKeyCode={several ? null : ['Meta', 'Control']}
         nodesConnectable={false}
         edgesReconnectable={false}
         deleteKeyCode={null}

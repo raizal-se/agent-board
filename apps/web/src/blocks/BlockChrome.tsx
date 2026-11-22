@@ -49,7 +49,10 @@ export function BlockChrome({ data, children }: { data: BlockData; children: Rea
       {changed && (
         <div className="changed-mark nodrag" data-testid="changed-mark">
           <span>changed after agreement</span>
-          <button type="button" onClick={() => compare(item.id)} aria-label={`compare ${item.path} with the agreed snapshot`}>
+          <button type="button" onClick={(e) => {
+              e.stopPropagation();
+              compare(item.id);
+            }} aria-label={`compare ${item.path} with the agreed snapshot`}>
             Compare
           </button>
         </div>

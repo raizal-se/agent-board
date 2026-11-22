@@ -24,6 +24,9 @@ export function TextDialog({
   onCancel: () => void;
 }) {
   const [text, setText] = useState(initial);
+  // Cancel on a click on the backdrop only when the press began there too, so a text selection
+  // that ends outside the dialog does not throw the text away.
+  const pressedOutside = useRef(false);
   const ref = useRef<HTMLTextAreaElement & HTMLInputElement>(null);
   const empty = required && text.trim() === '';
 
@@ -46,14 +49,19 @@ export function TextDialog({
   };
 
   return (
-    <div className="dialog-backdrop" onClick={onCancel}>
+    <div
+      className="dialog-backdrop"
+      onMouseDown={(e) => (pressedOutside.current = e.target === e.currentTarget)}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && pressedOutside.current) onCancel();
+      }}
+    >
       <form
         className="dialog"
         role="dialog"
         aria-modal="true"
         aria-label={title}
         data-testid="text-dialog"
-        onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
           done();
