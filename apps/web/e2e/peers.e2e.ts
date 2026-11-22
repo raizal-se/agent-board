@@ -38,7 +38,7 @@ const exported = () => {
   try {
     return JSON.parse(readFileSync(join(host.folder, '.agent-board', 'board.json'), 'utf8')) as {
       people?: { name: string; side: string; online?: boolean }[];
-      items: { kind: string; path?: string; text?: string; area?: string }[];
+      items: { kind: string; path?: string | null; content?: string; area?: string | null }[];
     };
   } catch {
     return undefined;
@@ -187,7 +187,7 @@ test("a guest cannot change the host's file card", async () => {
   });
   await expect.poll(async () => (await peerItems(dewi)).find((i) => i.path === 'checkout/api.md')?.text, { timeout: 10_000 }).toBe(API);
   await hostPage.waitForTimeout(1500);
-  expect(exported()?.items.find((i) => i.path === 'checkout/api.md')?.text).toBe(API);
+  expect(exported()?.items.find((i) => i.path === "checkout/api.md")?.content).toBe(API);
   expect(readFileSync(join(host.folder, 'checkout', 'api.md'), 'utf8')).toBe(API);
 });
 
