@@ -15,7 +15,6 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 .frame-count { font-weight: 400; font-size: 12px; color: var(--muted); }
 
 .block { width: 100%; height: 100%; display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgb(0 0 0 / 6%); }
-.react-flow__node.selected .block { outline: 2px solid var(--accent); }
 .block-title { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: #f7f6f0; }
 .block-kind { font-size: 10px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
 .block-name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -23,7 +22,6 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 .block-open:hover { border-color: var(--accent); color: var(--accent); }
 .block-body { flex: 1; overflow: auto; padding: 8px 12px; }
 .block-missing { padding: 4px 8px; border-top: 1px dashed var(--line); color: var(--danger); font-size: 11px; background: #fff8f6; }
-.block-handle { opacity: 0; pointer-events: none; }
 
 .markdown-body { overflow-wrap: anywhere; }
 .markdown-body h1 { font-size: 18px; margin: 4px 0 8px; }
@@ -44,13 +42,6 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 .html-placeholder { display: grid; place-items: center; height: 100%; color: var(--muted); }
 .html-path { padding: 6px 8px; color: var(--muted); font-size: 11px; flex: 1; }
 
-.react-flow__edge.file-edge .react-flow__edge-path { stroke: #7a7870; }
-.edge-label { position: absolute; pointer-events: none; font-size: 12px; line-height: 1.2; padding: 2px 6px; background: #fff; border: 1px solid var(--line); border-radius: 10px; color: #4a4843; white-space: nowrap; z-index: 5; display: flex; flex-direction: column; align-items: center; }
-.edge-label-file { font-size: 10px; color: var(--muted); font-family: ui-monospace, monospace; }
-.edge-label-human { pointer-events: all; font: inherit; font-size: 12px; min-height: 32px; justify-content: center; padding: 2px 10px; border: 1.5px solid var(--ink); color: var(--ink); cursor: pointer; border-radius: 16px; }
-.edge-label-human.selected { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 3px rgb(59 111 216 / 20%); }
-.react-flow__edge.human-edge .react-flow__edge-path { stroke: var(--ink); }
-.react-flow__edge.human-edge.selected .react-flow__edge-path { stroke: var(--accent); }
 
 .hidden-list { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; max-width: 360px; }
 .hidden-list ul { list-style: none; margin: 6px 0 0; padding: 0; max-height: 240px; overflow: auto; }
@@ -110,7 +101,6 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 
 /* Sticky notes: made by people, no agent mark. */
 .sticky { width: 100%; height: 100%; display: flex; flex-direction: column; background: #FEF08A; border-radius: 4px; box-shadow: 0 3px 8px rgb(0 0 0 / 14%); }
-.react-flow__node.selected .sticky { outline: 2px solid var(--accent); }
 .sticky-head { display: flex; align-items: center; gap: 4px; padding: 2px 2px 0 8px; cursor: grab; }
 .sticky-author { flex: 1; font-size: 11px; font-weight: 600; color: #713F12; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sticky-head .comment-pin { background: rgb(255 255 255 / 55%); border-color: transparent; }
@@ -119,7 +109,6 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 
 /* Decisions: made by people when they agree. */
 .decision { width: 100%; height: 100%; display: flex; flex-direction: column; gap: 4px; background: #fff; border: 2px solid #16A34A; border-radius: 8px; padding: 6px 10px 8px; box-shadow: 0 1px 3px rgb(0 0 0 / 8%); }
-.react-flow__node.selected .decision { outline: 2px solid var(--accent); }
 .decision-head { display: flex; align-items: center; justify-content: space-between; }
 .decision-label { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #15803D; }
 .decision-text { flex: 1; overflow: auto; font-weight: 600; white-space: pre-wrap; }
@@ -169,5 +158,16 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
   .compare-cols { grid-template-columns: 1fr 1fr; }
   .fullview { width: 100vw; height: 100vh; border-radius: 0; }
 }
-.react-flow__controls-button { width: 32px; height: 32px; }
 .hidden-list button { min-height: 32px; }
+
+/* The canvas fills the page; our own bars float over it. */
+.board-root { position: relative; overflow: hidden; }
+.board-overlay { position: absolute; left: 12px; z-index: 5; display: flex; flex-direction: column; gap: 6px; pointer-events: none; max-width: calc(100vw - 24px); }
+.board-overlay > * { pointer-events: auto; }
+.board-overlay-top { top: 64px; }
+.board-overlay-bottom { bottom: 64px; }
+
+/* Excalidraw: no library (it would fetch from outside), no "click to interact" hint. */
+.excalidraw .default-sidebar-trigger, .excalidraw .excalidraw__embeddable-hint { display: none !important; }
+/* An embedded block fills its element; the element draws no frame of its own around it. */
+.excalidraw__embeddable-container .block, .excalidraw__embeddable-container .decision { border-radius: 8px; }
