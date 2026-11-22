@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contentBounds, fitTop } from './fit';
+import { contentBounds, fitTop, inView } from './fit';
 
 const screen = (b: { minX: number; minY: number; maxX: number; maxY: number }, f: { scrollX: number; scrollY: number; zoom: number }) => ({
   left: (b.minX + f.scrollX) * f.zoom,
@@ -31,6 +31,15 @@ describe('the first view', () => {
   it('small content is not blown up past full size', () => {
     const f = fitTop({ minX: 0, minY: 0, maxX: 200, maxY: 100 }, { width: 1400, height: 900, top: 100, pad: 20 });
     expect(f.zoom).toBe(1);
+  });
+
+  it('a box is in view only if it shows whole, under the bars', () => {
+    const v = { scrollX: 0, scrollY: 0, zoom: 0.5, width: 1000, height: 800, top: 100 };
+    // On screen: scene x 0..2000, y 200..1600 (the top 100 px are bars, 200 scene px at zoom 0.5).
+    expect(inView({ minX: 10, minY: 250, maxX: 400, maxY: 500 }, v)).toBe(true);
+    expect(inView({ minX: 10, minY: 150, maxX: 400, maxY: 500 }, v)).toBe(false);
+    expect(inView({ minX: 10, minY: 1500, maxX: 400, maxY: 1700 }, v)).toBe(false);
+    expect(inView({ minX: 1900, minY: 250, maxX: 2100, maxY: 500 }, v)).toBe(false);
   });
 
   it('bounds cover the live elements only', () => {

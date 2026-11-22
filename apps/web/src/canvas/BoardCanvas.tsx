@@ -5,7 +5,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import type * as Y from 'yjs';
 import { EMBED_SCHEME, FONT_HELVETICA, kindOf, roughMeasure, type El, type Measure } from './elements';
 import { BlockEmbed } from './embeds';
-import { contentBounds, fitTop } from './fit';
+import { contentBounds, fitTop, inView } from './fit';
 import type { GestureState } from './scene';
 import { BoardSync } from './sync';
 
@@ -151,10 +151,17 @@ export const BoardCanvas = memo(function BoardCanvas({
             requestAnimationFrame(go);
             return;
           }
+          const els = api.getSceneElements().filter((e) => ids.includes(e.id));
           api.updateScene({
-            appState: { selectedElementIds: Object.fromEntries(ids.filter((id) => on.has(id)).map((id) => [id, true as const])) },
+            appState: { selectedElementIds: Object.fromEntries(els.map((e) => [e.id, true as const])) },
             captureUpdate: CaptureUpdateAction.NEVER,
           });
+          // Bring them into view if they are not (a new note can land past the edge of the view).
+          const b = contentBounds(els);
+          const s = api.getAppState();
+          if (b && !inView(b, { scrollX: s.scrollX, scrollY: s.scrollY, zoom: s.zoom.value, width: s.width, height: s.height, top: TOP_INSET })) {
+            api.scrollToContent(els, { animate: false });
+          }
         };
         go();
       },

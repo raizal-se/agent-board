@@ -53,3 +53,12 @@ export function fitTop(b: Bounds, s: ViewSpace): Fit {
     scrollY: s.top / zoom - b.minY,
   };
 }
+
+/** Whether the bounds show whole on screen, under the bars at the top, for a view (scroll and zoom). */
+export function inView(b: Bounds, v: { scrollX: number; scrollY: number; zoom: number; width: number; height: number; top: number }): boolean {
+  const left = -v.scrollX;
+  const top = -v.scrollY + v.top / v.zoom;
+  const right = -v.scrollX + v.width / v.zoom;
+  const bottom = -v.scrollY + v.height / v.zoom;
+  return b.minX >= left && b.minY >= top && b.maxX <= right && b.maxY <= bottom;
+}
