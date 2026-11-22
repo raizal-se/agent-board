@@ -183,3 +183,10 @@ body { font: 13px/1.45 system-ui, -apple-system, sans-serif; color: var(--ink); 
 .excalidraw__embeddable-container .card-btn,
 .excalidraw__embeddable-container .card-fade-open,
 .excalidraw__embeddable-container .changed-mark button { pointer-events: auto; }
+
+/*
+ * Excalidraw shows a link popup over a selected embed when the pointer rests on it. Board cards
+ * have no link to show or edit (editing it would break the card), and the popup sits over the
+ * selection bar and the card's own buttons: hide it.
+ */
+.excalidraw .excalidraw-hyperlinkContainer { display: none; }
